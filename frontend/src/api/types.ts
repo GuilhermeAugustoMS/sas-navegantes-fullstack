@@ -34,3 +34,28 @@ export interface ApiErrorBody {
   mensagem?: string;
   detalhes?: { field: string; problem: string }[];
 }
+
+/** Uma parcela calculada/persistida pelo Gerador de Proposta (ver backend src/calc/propostaEngine.ts). */
+export interface ParcelaProposta {
+  numeroParcela: number;
+  mesReferencia: number;
+  anoReferencia: number;
+  valorMensalidade: number;
+  valorMaterialDidatico: number;
+  valorMaterialDidaticoIngles: number;
+  valorAlimentacao: number;
+  valorIntegral: number;
+  valorSemiIntegral: number;
+  valorEstendido: number;
+  valorTotal: number;
+}
+
+export interface GerarParcelasInput {
+  ID_FORMA_PAGAMENTO: string;
+  MES_ENTRADA: number;
+  DIA_ENTRADA: number;
+  NECESSIDADE_ALIMENTACAO: boolean;
+  CONTRATOU_INTEGRAL?: boolean;
+  CONTRATOU_SEMI_INTEGRAL?: boolean;
+  CONTRATOU_ESTENDIDO?: boolean;
+}

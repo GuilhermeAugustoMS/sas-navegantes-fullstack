@@ -75,4 +75,15 @@ export const COMERCIAL_RESOURCES: ResourceDef[] = [
     label: "Follow-Ups",
     foreignKeys: [{ field: "ID_NEGOCIACAO", targetSheet: "Negociacoes" }],
   },
+  {
+    // Gerado pelo Gerador de Proposta (motor de cálculo) -- ver
+    // src/calc/propostaEngine.ts e routes/propostaGenerator.routes.ts.
+    // Exposto como CRUD genérico também (leitura/ajuste manual), mas o
+    // fluxo normal é criar via POST /api/comercial/propostas/:id/parcelas.
+    slug: "parcelas-proposta",
+    file: COMERCIAL,
+    sheetName: "ParcelasProposta",
+    label: "Parcelas de Proposta",
+    foreignKeys: [{ field: "ID_PROPOSTA", targetSheet: "Propostas" }],
+  },
 ];

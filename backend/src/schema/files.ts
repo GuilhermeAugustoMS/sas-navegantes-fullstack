@@ -259,6 +259,36 @@ export const FINANCEIRO: FileDef = {
         { name: "TIPO", type: "enum", enumValues: ["Entrada", "Saida"], required: true },
       ],
     },
+    {
+      // Preço-base por série (Seção 8 do Mapa Funcional: entidade "TabelaPreco"),
+      // com vigência para nunca sobrescrever histórico de preço (Seção 54/23).
+      name: "TabelaPrecos",
+      idPrefix: "TPR",
+      columns: [
+        { name: "ID_TABELA_PRECO", type: "text", required: true, isId: true },
+        { name: "ID_SERIE", type: "text", required: true },
+        { name: "MENSALIDADE", type: "number", required: true },
+        { name: "MATERIAL_DIDATICO", type: "number", required: true },
+        { name: "MATERIAL_DIDATICO_INGLES", type: "number", required: true },
+        { name: "ALIMENTACAO", type: "number", required: true },
+        { name: "DATA_VIGENCIA", type: "date", required: true },
+        { name: "ATIVO", type: "boolean", required: true },
+      ],
+    },
+    {
+      // Seção 27 do prompt mestre: Integral/Semi-Integral/Estendido não variam por série,
+      // são parâmetros únicos da escola, com valor por dia (cobrança avulsa) e por mês (contratação mensal).
+      name: "ProgramasExtras",
+      idPrefix: "PEX",
+      columns: [
+        { name: "ID_PROGRAMA_EXTRA", type: "text", required: true, isId: true },
+        { name: "NOME", type: "enum", enumValues: ["Integral", "Semi-Integral", "Estendido"], required: true },
+        { name: "VALOR_DIA", type: "number" },
+        { name: "VALOR_MES", type: "number", required: true },
+        { name: "DATA_VIGENCIA", type: "date", required: true },
+        { name: "ATIVO", type: "boolean", required: true },
+      ],
+    },
   ],
 };
 
@@ -415,6 +445,29 @@ export const COMERCIAL: FileDef = {
         { name: "ID_NEGOCIACAO", type: "text", required: true },
         { name: "DATA", type: "date", required: true },
         { name: "OBSERVACAO", type: "text" },
+      ],
+    },
+    {
+      // Cronograma de parcelas gerado pelo CalculationEngine (Seção 17/22) para uma Proposta.
+      // Congelado no momento da geração (Seção 22: "Se o preço da série mudar depois, a
+      // proposta histórica NÃO pode ser alterada") — por isso não tem ATIVO/exclusão lógica,
+      // igual às demais abas transacionais do Comercial.
+      name: "ParcelasProposta",
+      idPrefix: "PPR",
+      columns: [
+        { name: "ID_PARCELA_PROPOSTA", type: "text", required: true, isId: true },
+        { name: "ID_PROPOSTA", type: "text", required: true },
+        { name: "NUMERO_PARCELA", type: "number", required: true },
+        { name: "MES_REFERENCIA", type: "number", required: true },
+        { name: "ANO_REFERENCIA", type: "number", required: true },
+        { name: "VALOR_MENSALIDADE", type: "number", required: true },
+        { name: "VALOR_MATERIAL_DIDATICO", type: "number", required: true },
+        { name: "VALOR_MATERIAL_DIDATICO_INGLES", type: "number", required: true },
+        { name: "VALOR_ALIMENTACAO", type: "number", required: true },
+        { name: "VALOR_INTEGRAL", type: "number", required: true },
+        { name: "VALOR_SEMI_INTEGRAL", type: "number", required: true },
+        { name: "VALOR_ESTENDIDO", type: "number", required: true },
+        { name: "VALOR_TOTAL", type: "number", required: true },
       ],
     },
     {

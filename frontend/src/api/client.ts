@@ -1,4 +1,4 @@
-import type { ApiErrorBody, RecordRow, ResourceDef } from "./types";
+import type { ApiErrorBody, GerarParcelasInput, ParcelaProposta, RecordRow, ResourceDef } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
 
@@ -18,6 +18,7 @@ export interface ModuleDef {
 export const MODULES: ModuleDef[] = [
   { key: "cadastros", label: "Cadastros", apiBase: "/api/cadastros" },
   { key: "comercial", label: "Comercial", apiBase: "/api/comercial" },
+  { key: "financeiro", label: "Financeiro", apiBase: "/api/financeiro" },
 ];
 
 export class ApiError extends Error {
@@ -74,4 +75,20 @@ export const api = {
       { method: "DELETE", body: JSON.stringify({ motivo }) },
       usuario,
     ),
+
+  // Gerador de Proposta (Seção 22) -- rota dedicada, não é CRUD genérico.
+  simularParcelas: (propostaId: string, input: GerarParcelasInput) =>
+    request<{ parcelas: ParcelaProposta[]; valorTotalMes: number }>(
+      `/api/comercial/propostas/${propostaId}/parcelas?preview=true`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+
+  gerarParcelas: (propostaId: string, input: GerarParcelasInput, usuario: string) =>
+    request<{ parcelas: ParcelaProposta[]; valorTotalMes: number }>(
+      `/api/comercial/propostas/${propostaId}/parcelas`,
+      { method: "POST", body: JSON.stringify(input) },
+      usuario,
+    ),
+
+  listarParcelas: (propostaId: string) => request<ParcelaProposta[]>(`/api/comercial/propostas/${propostaId}/parcelas`),
 };

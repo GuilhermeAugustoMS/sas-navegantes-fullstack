@@ -1,6 +1,10 @@
 import { MODULES } from "../api/client";
 import type { ResourceDef } from "../api/types";
 
+/** Slug sentinela (não é um ResourceDef real do catálogo) para a tela especial
+ * do Gerador de Proposta -- ver CrudPage.tsx. */
+export const GERADOR_PROPOSTA_SLUG = "__gerador-proposta__";
+
 interface Props {
   resources: ResourceDef[];
   activeSlug: string | null;
@@ -17,11 +21,26 @@ export function Sidebar({ resources, activeSlug, onSelect }: Props) {
 
       {MODULES.map((mod) => {
         const moduleResources = resources.filter((r) => r.apiBase === mod.apiBase);
-        if (moduleResources.length === 0) return null;
+        const isComercial = mod.key === "comercial";
+        if (moduleResources.length === 0 && !isComercial) return null;
         return (
           <div key={mod.key} className="py-2">
             <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{mod.label}</p>
             <ul>
+              {isComercial && (
+                <li>
+                  <button
+                    onClick={() => onSelect(GERADOR_PROPOSTA_SLUG)}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      activeSlug === GERADOR_PROPOSTA_SLUG
+                        ? "bg-indigo-100 text-indigo-800 font-medium border-r-2 border-indigo-600"
+                        : "text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    Gerador de Proposta
+                  </button>
+                </li>
+              )}
               {moduleResources.map((r) => (
                 <li key={r.slug}>
                   <button

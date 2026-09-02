@@ -11,6 +11,7 @@
     "build": "tsc -p .",
     "test": "vitest run",
     "seed": "tsx src/seed.ts",
+    "seed:precos": "tsx src/seedPrecos.ts",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js"
   },

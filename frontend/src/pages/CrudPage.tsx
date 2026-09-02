@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, GERADOR_PROPOSTA_SLUG } from "../components/Sidebar";
 import { DataTable } from "../components/DataTable";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { PropostaGeneratorPage } from "./PropostaGeneratorPage";
 import { useCatalog } from "../context/CatalogContext";
 import { useUsuario } from "../hooks/useUsuario";
 import { api, ApiError } from "../api/client";
@@ -26,7 +27,8 @@ export function CrudPage() {
     if (!activeSlug && resources.length > 0) setActiveSlug(resources[0].slug);
   }, [resources, activeSlug]);
 
-  const resource = activeSlug ? resourceBySlug.get(activeSlug) ?? null : null;
+  const isGeradorProposta = activeSlug === GERADOR_PROPOSTA_SLUG;
+  const resource = activeSlug && !isGeradorProposta ? resourceBySlug.get(activeSlug) ?? null : null;
   const showAtivo = resource ? hasAtivo(resource) : false;
 
   const loadRows = useCallback(async () => {
@@ -88,61 +90,67 @@ export function CrudPage() {
       <Sidebar resources={resources} activeSlug={activeSlug} onSelect={setActiveSlug} />
 
       <main className="flex-1 overflow-y-auto">
-        <header className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">{resource?.label ?? "Sas Navegantes"}</h2>
-            {resource && <p className="text-xs text-slate-400 font-mono">{resource.arquivo} — {resource.aba}</p>}
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-slate-500 flex items-center gap-1">
-              Usuário:
-              <input
-                value={usuario}
-                onChange={(e) => setUsuario(e.target.value)}
-                className="border border-slate-300 rounded px-2 py-1 text-xs w-28"
-              />
-            </label>
-            {showAtivo && (
-              <label className="text-xs text-slate-600 flex items-center gap-1">
-                <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-                mostrar inativos
-              </label>
-            )}
-            <button
-              onClick={() => setEditing("novo")}
-              className="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-            >
-              + Novo
-            </button>
-          </div>
-        </header>
+        {isGeradorProposta ? (
+          <PropostaGeneratorPage />
+        ) : (
+          <>
+            <header className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">{resource?.label ?? "Sas Navegantes"}</h2>
+                {resource && <p className="text-xs text-slate-400 font-mono">{resource.arquivo} — {resource.aba}</p>}
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-slate-500 flex items-center gap-1">
+                  Usuário:
+                  <input
+                    value={usuario}
+                    onChange={(e) => setUsuario(e.target.value)}
+                    className="border border-slate-300 rounded px-2 py-1 text-xs w-28"
+                  />
+                </label>
+                {showAtivo && (
+                  <label className="text-xs text-slate-600 flex items-center gap-1">
+                    <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+                    mostrar inativos
+                  </label>
+                )}
+                <button
+                  onClick={() => setEditing("novo")}
+                  className="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  + Novo
+                </button>
+              </div>
+            </header>
 
-        <div className="p-6">
-          {toast && (
-            <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
-              {toast}
+            <div className="p-6">
+              {toast && (
+                <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
+                  {toast}
+                </div>
+              )}
+
+              {rowsError && (
+                <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  {rowsError}
+                </div>
+              )}
+
+              {rowsLoading ? (
+                <p className="text-sm text-slate-500">Carregando registros...</p>
+              ) : (
+                resource && (
+                  <DataTable
+                    resource={resource}
+                    rows={rows}
+                    onEdit={(row) => setEditing(row)}
+                    onDelete={(row) => setDeleting(row)}
+                  />
+                )
+              )}
             </div>
-          )}
-
-          {rowsError && (
-            <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-              {rowsError}
-            </div>
-          )}
-
-          {rowsLoading ? (
-            <p className="text-sm text-slate-500">Carregando registros...</p>
-          ) : (
-            resource && (
-              <DataTable
-                resource={resource}
-                rows={rows}
-                onEdit={(row) => setEditing(row)}
-                onDelete={(row) => setDeleting(row)}
-              />
-            )
-          )}
-        </div>
+          </>
+        )}
       </main>
 
       {resource && editing && (
