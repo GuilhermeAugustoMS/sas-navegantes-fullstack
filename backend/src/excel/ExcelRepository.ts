@@ -37,13 +37,39 @@ export interface RepoContext {
  * abre um arquivo .xlsx diretamente -- tudo passa por aqui.
  */
 export class ExcelRepository {
-  /** Cria o arquivo com todas as abas/cabeçalhos do FileDef, se ainda não existir (idempotente). */
+  /**
+   * Cria o arquivo com todas as abas/cabeçalhos do FileDef, se ainda não existir.
+   * Se o arquivo já existir (caso comum: o schema ganhou uma aba nova depois que
+   * o .xlsx real já tinha sido criado), acrescenta só as abas que estiverem
+   * faltando -- nunca mexe nas abas/dados já existentes. Idempotente: rodar de
+   * novo depois que todas as abas já existem não faz nada.
+   */
   async ensureFile(fileDef: FileDef): Promise<void> {
     const target = filePath(fileDef.fileName);
-    if (fs.existsSync(target)) return;
-    await ensureDir(path.dirname(target));
-    const wb = buildWorkbookFromDef(fileDef);
-    await wb.xlsx.writeFile(target);
+    if (!fs.existsSync(target)) {
+      await ensureDir(path.dirname(target));
+      const wb = buildWorkbookFromDef(fileDef);
+      await wb.xlsx.writeFile(target);
+      return;
+    }
+
+    const atual = await readWorkbook(target);
+    const abasExistentes = new Set(atual.worksheets.map((ws) => ws.name));
+    const abasFaltando = fileDef.sheets.filter((s) => !abasExistentes.has(s.name));
+    if (abasFaltando.length === 0) return;
+
+    await withFileLock(target, async () => {
+      await backupFile(target);
+      await this.safeMutate(target, async (wb) => {
+        for (const sheet of abasFaltando) {
+          if (wb.getWorksheet(sheet.name)) continue; // já foi adicionada em outra chamada concorrente
+          const ws = wb.addWorksheet(sheet.name);
+          ws.addRow(sheet.columns.map((c) => c.name));
+          ws.getRow(1).font = { bold: true };
+          ws.views = [{ state: "frozen", ySplit: 1 }];
+        }
+      });
+    });
   }
 
   async readAll(fileDef: FileDef, sheetName: string): Promise<Record_[]> {
