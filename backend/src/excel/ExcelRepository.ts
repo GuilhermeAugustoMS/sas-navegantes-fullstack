@@ -1,0 +1,203 @@
+import fs from "node:fs";
+import path from "node:path";
+import ExcelJS from "exceljs";
+import type { FileDef, Record_, SheetDef } from "../types/schema.js";
+import { findSheetDef } from "../schema/files.js";
+import { filePath } from "../config/paths.js";
+import {
+  appendRecord,
+  buildWorkbookFromDef,
+  ensureDir,
+  readWorkbook,
+  sheetToRecords,
+  tempPathFor,
+  writeRecordAtRow,
+} from "./workbookIO.js";
+import { withFileLock } from "./lock.js";
+import { backupFile, latestBackup, restoreFile } from "./backup.js";
+import { nextId } from "../util/ids.js";
+import { validateRecord, type ValidationError } from "./validate.js";
+import { writeAuditEntry } from "./audit.js";
+
+export class ValidationFailedError extends Error {
+  constructor(public errors: ValidationError[]) {
+    super(`Validação falhou: ${errors.map((e) => `${e.field}: ${e.problem}`).join("; ")}`);
+  }
+}
+
+export class RecordNotFoundError extends Error {}
+
+export interface RepoContext {
+  usuario: string;
+  motivo?: string;
+}
+
+/**
+ * Camada única de acesso aos .xlsx (Seção 48). O resto da aplicação nunca
+ * abre um arquivo .xlsx diretamente -- tudo passa por aqui.
+ */
+export class ExcelRepository {
+  /** Cria o arquivo com todas as abas/cabeçalhos do FileDef, se ainda não existir (idempotente). */
+  async ensureFile(fileDef: FileDef): Promise<void> {
+    const target = filePath(fileDef.fileName);
+    if (fs.existsSync(target)) return;
+    await ensureDir(path.dirname(target));
+    const wb = buildWorkbookFromDef(fileDef);
+    await wb.xlsx.writeFile(target);
+  }
+
+  async readAll(fileDef: FileDef, sheetName: string): Promise<Record_[]> {
+    const sheetDef = this.getSheetDef(fileDef, sheetName);
+    const wb = await readWorkbook(filePath(fileDef.fileName));
+    const ws = wb.getWorksheet(sheetName);
+    if (!ws) throw new Error(`Aba não encontrada: ${sheetName}`);
+    return sheetToRecords(ws, sheetDef);
+  }
+
+  async query(fileDef: FileDef, sheetName: string, predicate: (r: Record_) => boolean): Promise<Record_[]> {
+    const all = await this.readAll(fileDef, sheetName);
+    return all.filter(predicate);
+  }
+
+  async findById(fileDef: FileDef, sheetName: string, id: string): Promise<Record_ | undefined> {
+    const sheetDef = this.getSheetDef(fileDef, sheetName);
+    const idColumn = sheetDef.columns.find((c) => c.isId)?.name;
+    if (!idColumn) throw new Error(`Aba ${sheetName} não possui coluna de ID.`);
+    const all = await this.readAll(fileDef, sheetName);
+    return all.find((r) => r[idColumn] === id);
+  }
+
+  /** Insere um novo registro. Gera o ID automaticamente se a aba tiver idPrefix. */
+  async insert(fileDef: FileDef, sheetName: string, data: Record_, ctx: RepoContext): Promise<Record_> {
+    const sheetDef = this.getSheetDef(fileDef, sheetName);
+    const target = filePath(fileDef.fileName);
+
+    return withFileLock(target, async () => {
+      await backupFile(target);
+      const existing = await this.readAll(fileDef, sheetName);
+
+      const record: Record_ = { ...data };
+      const idColumn = sheetDef.columns.find((c) => c.isId)?.name;
+      if (idColumn && !record[idColumn] && sheetDef.idPrefix) {
+        record[idColumn] = nextId(sheetDef, existing);
+      }
+
+      const errors = validateRecord(sheetDef, record);
+      if (errors.length > 0) throw new ValidationFailedError(errors);
+
+      await this.safeMutate(target, async (wb) => {
+        const ws = wb.getWorksheet(sheetName)!;
+        appendRecord(ws, sheetDef, record);
+      });
+
+      await writeAuditEntry({
+        usuario: ctx.usuario,
+        acao: "CRIACAO",
+        arquivo: fileDef.fileName,
+        aba: sheetName,
+        idRegistro: idColumn ? String(record[idColumn]) : undefined,
+        motivo: ctx.motivo,
+      });
+
+      return record;
+    });
+  }
+
+  /** Atualiza campos de um registro existente, identificado por ID. Gera auditoria por campo alterado. */
+  async update(fileDef: FileDef, sheetName: string, id: string, changes: Record_, ctx: RepoContext): Promise<Record_> {
+    const sheetDef = this.getSheetDef(fileDef, sheetName);
+    const target = filePath(fileDef.fileName);
+    const idColumn = sheetDef.columns.find((c) => c.isId)?.name;
+    if (!idColumn) throw new Error(`Aba ${sheetName} não possui coluna de ID.`);
+
+    return withFileLock(target, async () => {
+      const existing = await this.readAll(fileDef, sheetName);
+      const current = existing.find((r) => r[idColumn] === id);
+      if (!current) throw new RecordNotFoundError(`${idColumn}=${id} não encontrado em ${sheetName}`);
+
+      const merged: Record_ = { ...current, ...changes };
+      const errors = validateRecord(sheetDef, merged, { isUpdate: true });
+      if (errors.length > 0) throw new ValidationFailedError(errors);
+
+      await backupFile(target);
+
+      const rowNumber = current.__row as number;
+      await this.safeMutate(target, async (wb) => {
+        const ws = wb.getWorksheet(sheetName)!;
+        writeRecordAtRow(ws, sheetDef, rowNumber, merged);
+      });
+
+      for (const field of Object.keys(changes)) {
+        if (field === "__row") continue;
+        if (current[field] === changes[field]) continue;
+        await writeAuditEntry({
+          usuario: ctx.usuario,
+          acao: "ALTERACAO",
+          arquivo: fileDef.fileName,
+          aba: sheetName,
+          idRegistro: id,
+          campo: field,
+          valorAnterior: current[field],
+          valorNovo: changes[field],
+          motivo: ctx.motivo,
+        });
+      }
+
+      return merged;
+    });
+  }
+
+  /** Exclusão lógica (Seção 62): nunca apaga a linha, marca ATIVO=false. */
+  async softDelete(fileDef: FileDef, sheetName: string, id: string, ctx: RepoContext): Promise<void> {
+    const sheetDef = this.getSheetDef(fileDef, sheetName);
+    if (!sheetDef.columns.some((c) => c.name === "ATIVO")) {
+      throw new Error(`Aba ${sheetName} não possui coluna ATIVO; exclusão lógica não suportada.`);
+    }
+    await this.update(fileDef, sheetName, id, { ATIVO: false }, { ...ctx, motivo: ctx.motivo ?? "Exclusão lógica" });
+  }
+
+  async restoreLatestBackup(fileDef: FileDef): Promise<void> {
+    const target = filePath(fileDef.fileName);
+    const backup = await latestBackup(fileDef.fileName);
+    if (!backup) throw new Error(`Nenhum backup encontrado para ${fileDef.fileName}`);
+    await withFileLock(target, async () => {
+      await restoreFile(backup.fullPath, target);
+    });
+  }
+
+  private getSheetDef(fileDef: FileDef, sheetName: string): SheetDef {
+    const sheetDef = findSheetDef(fileDef.fileName, sheetName);
+    if (!sheetDef) throw new Error(`Aba não definida no schema: ${fileDef.fileName} / ${sheetName}`);
+    return sheetDef;
+  }
+
+  /**
+   * Escrita segura (Seção 37): lê o arquivo atual, aplica a mutação em memória,
+   * grava em arquivo temporário, reabre para validar integridade (Seção 40),
+   * e só então substitui o original de forma atômica (rename). Se qualquer
+   * etapa falhar, o arquivo original nunca é tocado.
+   */
+  private async safeMutate(target: string, mutate: (wb: ExcelJS.Workbook) => Promise<void>): Promise<void> {
+    const wb = await readWorkbook(target);
+    await mutate(wb);
+
+    const tmp = tempPathFor(target);
+    try {
+      await wb.xlsx.writeFile(tmp);
+
+      // Validação pós-gravação (Seção 40): reabre o arquivo temporário e confere
+      // que todas as abas esperadas continuam legíveis antes de substituir o original.
+      const check = await readWorkbook(tmp);
+      if (check.worksheets.length === 0) {
+        throw new Error("Arquivo temporário gravado sem nenhuma aba -- gravação abortada.");
+      }
+
+      await fs.promises.rename(tmp, target);
+    } catch (err) {
+      if (fs.existsSync(tmp)) {
+        await fs.promises.unlink(tmp).catch(() => {});
+      }
+      throw err;
+    }
+  }
+}

@@ -1,0 +1,113 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import request from "supertest";
+
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sas-data-api-"));
+process.env.SAS_DATA_ROOT = tmpRoot;
+
+const { createApp } = await import("../src/api/app.js");
+
+let app: Awaited<ReturnType<typeof createApp>>;
+
+beforeAll(async () => {
+  app = await createApp();
+});
+
+afterAll(() => {
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
+});
+
+describe("API REST de Cadastros", () => {
+  it("expõe um catálogo de recursos", async () => {
+    const res = await request(app).get("/api/cadastros/_catalogo");
+    expect(res.status).toBe(200);
+    expect(res.body.some((r: any) => r.slug === "alunos")).toBe(true);
+  });
+
+  it("lista vazio no início", async () => {
+    const res = await request(app).get("/api/cadastros/unidades");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("cria uma Unidade e devolve o ID gerado", async () => {
+    const res = await request(app)
+      .post("/api/cadastros/unidades")
+      .set("x-usuario", "gui")
+      .send({ NOME: "Unidade Carajás", ATIVO: true });
+
+    expect(res.status).toBe(201);
+    expect(res.body.ID_UNIDADE).toBe("UNI_000001");
+    expect(res.body.__row).toBeUndefined(); // detalhe interno não deve vazar na API
+  });
+
+  it("rejeita criação de Aluno referenciando Unidade inexistente (regra de negócio, 422)", async () => {
+    const res = await request(app)
+      .post("/api/cadastros/alunos")
+      .send({ NOME: "Aluno Teste", DATA_NASCIMENTO: "2019-01-01", ID_UNIDADE: "UNI_999999", DATA_CADASTRO: "2026-01-01", ATIVO: true });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("REGRA_DE_NEGOCIO");
+  });
+
+  it("cria um Aluno com FK válida (fluxo completo da tela de Cadastros)", async () => {
+    const res = await request(app)
+      .post("/api/cadastros/alunos")
+      .send({
+        NOME: "Laura",
+        DATA_NASCIMENTO: "2024-08-23",
+        ID_UNIDADE: "UNI_000001",
+        DATA_CADASTRO: "2026-09-02",
+        ATIVO: true,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.ID_ALUNO).toBe("ALU_000001");
+    expect(res.body.NOME).toBe("Laura");
+  });
+
+  it("busca por ID", async () => {
+    const res = await request(app).get("/api/cadastros/alunos/ALU_000001");
+    expect(res.status).toBe(200);
+    expect(res.body.NOME).toBe("Laura");
+  });
+
+  it("retorna 404 para ID inexistente", async () => {
+    const res = await request(app).get("/api/cadastros/alunos/ALU_999999");
+    expect(res.status).toBe(404);
+  });
+
+  it("valida payload malformado (400)", async () => {
+    const res = await request(app).post("/api/cadastros/unidades").send({ ATIVO: true }); // NOME obrigatório ausente
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("VALIDACAO");
+  });
+
+  it("atualiza um registro existente", async () => {
+    const res = await request(app).put("/api/cadastros/alunos/ALU_000001").send({ NOME: "Laura Atualizada" });
+    expect(res.status).toBe(200);
+    expect(res.body.NOME).toBe("Laura Atualizada");
+  });
+
+  it("exclusão lógica retorna 204 e o registro some da listagem de ativos", async () => {
+    const del = await request(app).delete("/api/cadastros/alunos/ALU_000001");
+    expect(del.status).toBe(204);
+
+    const ativos = await request(app).get("/api/cadastros/alunos?ativo=true");
+    expect(ativos.body.find((a: any) => a.ID_ALUNO === "ALU_000001")).toBeUndefined();
+
+    const todos = await request(app).get("/api/cadastros/alunos");
+    expect(todos.body.find((a: any) => a.ID_ALUNO === "ALU_000001")).toBeDefined();
+  });
+
+  it("cada escrita via API fica registrada na auditoria com o usuário do header x-usuario", async () => {
+    const { ExcelRepository } = await import("../src/excel/ExcelRepository.js");
+    const { AUDITORIA } = await import("../src/schema/files.js");
+    const repo = new ExcelRepository();
+    const logs = await repo.readAll(AUDITORIA, "LogsAlteracoes");
+    const doGui = logs.find((l) => l.USUARIO === "gui");
+    expect(doGui).toBeDefined();
+  });
+});
