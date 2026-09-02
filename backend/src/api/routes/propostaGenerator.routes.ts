@@ -151,7 +151,7 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         { usuario: req.usuario, motivo: "Gerador de Proposta: parcelas calculadas" },
       );
 
-      res.status(201).json({ parcelas: persistidas.map(stripInternal), valorTotalMes: parcelas.at(-1)?.valorTotal ?? 0 });
+      res.status(201).json({ parcelas: persistidas.map(toParcelaProposta), valorTotalMes: parcelas.at(-1)?.valorTotal ?? 0 });
     } catch (err) {
       next(err);
     }
@@ -160,7 +160,11 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
   router.get("/propostas/:id/parcelas", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const rows = await repo.query(COMERCIAL, "ParcelasProposta", (r) => r.ID_PROPOSTA === paramId(req));
-      res.json(rows.map(stripInternal).sort((a: any, b: any) => a.NUMERO_PARCELA - b.NUMERO_PARCELA));
+      res.json(
+        rows
+          .sort((a: any, b: any) => a.NUMERO_PARCELA - b.NUMERO_PARCELA)
+          .map(toParcelaProposta),
+      );
     } catch (err) {
       next(err);
     }
@@ -169,7 +173,26 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
   return router;
 }
 
-function stripInternal(rec: Record<string, unknown>) {
-  const { __row, ...rest } = rec;
-  return rest;
+/**
+ * Converte um registro cru do Excel (colunas MAIUSCULO_COM_UNDERSCORE, ver
+ * schema/files.ts) para o formato camelCase que o frontend espera
+ * (ParcelaProposta em frontend/src/api/types.ts). Sem isso, a resposta de
+ * confirmação/listagem ficaria com um formato diferente da resposta de
+ * preview (que já sai camelCase direto do propostaEngine.ts) -- foi
+ * exatamente esse descompasso que quebrava a tela após "Confirmar Proposta".
+ */
+function toParcelaProposta(rec: Record<string, unknown>) {
+  return {
+    numeroParcela: Number(rec.NUMERO_PARCELA),
+    mesReferencia: Number(rec.MES_REFERENCIA),
+    anoReferencia: Number(rec.ANO_REFERENCIA),
+    valorMensalidade: Number(rec.VALOR_MENSALIDADE),
+    valorMaterialDidatico: Number(rec.VALOR_MATERIAL_DIDATICO),
+    valorMaterialDidaticoIngles: Number(rec.VALOR_MATERIAL_DIDATICO_INGLES),
+    valorAlimentacao: Number(rec.VALOR_ALIMENTACAO),
+    valorIntegral: Number(rec.VALOR_INTEGRAL),
+    valorSemiIntegral: Number(rec.VALOR_SEMI_INTEGRAL),
+    valorEstendido: Number(rec.VALOR_ESTENDIDO),
+    valorTotal: Number(rec.VALOR_TOTAL),
+  };
 }

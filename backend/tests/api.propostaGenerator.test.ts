@@ -104,12 +104,23 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
     expect(res.status).toBe(201);
     expect(res.body.parcelas).toHaveLength(12);
     expect(res.body.valorTotalMes).toBeCloseTo(1600 + 290 + 40 + 350, 2);
+    // Formato camelCase igual ao da resposta de preview (ParcelaProposta do frontend) --
+    // regressão: já existiu um bug em que esta resposta vinha em SNAKE_CASE cru do Excel,
+    // quebrando a tela ao tentar formatar valorTotal (undefined) como moeda.
+    expect(res.body.parcelas[0]).toMatchObject({
+      numeroParcela: 1,
+      mesReferencia: 1,
+      anoReferencia: 2027,
+      valorTotal: expect.any(Number),
+    });
+    expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600 + 290 + 40 + 350, 2);
 
     const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
     expect(propostaAtualizada.body.VALOR_TOTAL_MES).toBeCloseTo(1600 + 290 + 40 + 350, 2);
 
     const listaParcelas = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`);
     expect(listaParcelas.body).toHaveLength(12);
+    expect(listaParcelas.body[0]).toMatchObject({ numeroParcela: 1, valorTotal: expect.any(Number) });
   });
 
   it("recusa gerar parcelas de novo para a mesma proposta (histórico congelado)", async () => {
