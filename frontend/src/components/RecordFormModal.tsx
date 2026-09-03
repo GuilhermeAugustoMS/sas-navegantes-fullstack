@@ -9,7 +9,9 @@ interface Props {
   record: RecordRow | null; // null = criação
   usuario: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved: RecordRow) => void;
+  /** Valores pré-preenchidos ao criar (ignorado em edição) — ex.: ID_ALUNO ao abrir "+ Nova Negociação" a partir do wizard. */
+  initialValues?: Partial<RecordRow>;
 }
 
 function toDateInputValue(v: unknown): string {
@@ -19,12 +21,12 @@ function toDateInputValue(v: unknown): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function RecordFormModal({ resource, record, usuario, onClose, onSaved }: Props) {
+export function RecordFormModal({ resource, record, usuario, onClose, onSaved, initialValues }: Props) {
   const { getOptions, resourceBySheet } = useCatalog();
   const isEdit = record !== null;
   const editableColumns = resource.colunas.filter((c) => !c.isId);
 
-  const [values, setValues] = useState<RecordRow>(() => record ?? emptyRecordFor(editableColumns));
+  const [values, setValues] = useState<RecordRow>(() => record ?? { ...emptyRecordFor(editableColumns), ...initialValues });
   const [fkOptions, setFkOptions] = useState<Map<string, RecordRow[]>>(new Map());
   const [fieldErrors, setFieldErrors] = useState<Map<string, string>>(new Map());
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,13 +70,10 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved }:
     }
 
     try {
-      if (isEdit) {
-        const id = record![resource.idField] as string;
-        await api.update(resource, id, payload, usuario);
-      } else {
-        await api.create(resource, payload, usuario);
-      }
-      onSaved();
+      const saved = isEdit
+        ? await api.update(resource, record![resource.idField] as string, payload, usuario)
+        : await api.create(resource, payload, usuario);
+      onSaved(saved);
     } catch (err) {
       if (err instanceof ApiError && err.body.detalhes) {
         const map = new Map<string, string>();

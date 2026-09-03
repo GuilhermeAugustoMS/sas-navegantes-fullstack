@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Sidebar, GERADOR_PROPOSTA_SLUG } from "../components/Sidebar";
+import { Sidebar, GERADOR_PROPOSTA_SLUG, FAZER_PROPOSTA_SLUG } from "../components/Sidebar";
 import { DataTable } from "../components/DataTable";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { PropostaGeneratorPage } from "./PropostaGeneratorPage";
+import { FazerPropostaPage } from "./FazerPropostaPage";
 import { useCatalog } from "../context/CatalogContext";
 import { useUsuario } from "../hooks/useUsuario";
 import { api, ApiError } from "../api/client";
@@ -28,7 +29,8 @@ export function CrudPage() {
   }, [resources, activeSlug]);
 
   const isGeradorProposta = activeSlug === GERADOR_PROPOSTA_SLUG;
-  const resource = activeSlug && !isGeradorProposta ? resourceBySlug.get(activeSlug) ?? null : null;
+  const isFazerProposta = activeSlug === FAZER_PROPOSTA_SLUG;
+  const resource = activeSlug && !isGeradorProposta && !isFazerProposta ? resourceBySlug.get(activeSlug) ?? null : null;
   const showAtivo = resource ? hasAtivo(resource) : false;
 
   const loadRows = useCallback(async () => {
@@ -92,6 +94,8 @@ export function CrudPage() {
       <main className="flex-1 overflow-y-auto">
         {isGeradorProposta ? (
           <PropostaGeneratorPage />
+        ) : isFazerProposta ? (
+          <FazerPropostaPage />
         ) : (
           <>
             <header className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">

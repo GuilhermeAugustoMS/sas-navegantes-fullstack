@@ -75,6 +75,15 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         errors.push({ field: "DIA_ENTRADA", problem: "Deve ser um número inteiro de 1 a 31." });
       }
 
+      const percentualDescontoRaw = body.PERCENTUAL_DESCONTO;
+      const percentualDesconto =
+        percentualDescontoRaw === undefined || percentualDescontoRaw === null || percentualDescontoRaw === ""
+          ? 0
+          : Number(percentualDescontoRaw);
+      if (Number.isNaN(percentualDesconto) || percentualDesconto < 0 || percentualDesconto > 100) {
+        errors.push({ field: "PERCENTUAL_DESCONTO", problem: "Deve ser um número de 0 a 100." });
+      }
+
       let anoReferencia: number | undefined;
       if (serie) {
         const anoLetivo = await repo.findById(CADASTROS, "AnosLetivos", String(serie.ID_ANO_LETIVO));
@@ -112,6 +121,7 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         diaEntrada,
         necessidadeAlimentacao: Boolean(body.NECESSIDADE_ALIMENTACAO),
         extrasContratados,
+        percentualDesconto,
       });
 
       if (preview) {
@@ -147,7 +157,7 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         COMERCIAL,
         "Propostas",
         propostaId,
-        { VALOR_TOTAL_MES: parcelas.at(-1)?.valorTotal ?? 0 },
+        { VALOR_TOTAL_MES: parcelas.at(-1)?.valorTotal ?? 0, PERCENTUAL_DESCONTO: percentualDesconto },
         { usuario: req.usuario, motivo: "Gerador de Proposta: parcelas calculadas" },
       );
 

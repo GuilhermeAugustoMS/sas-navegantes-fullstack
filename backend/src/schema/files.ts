@@ -402,6 +402,7 @@ export const COMERCIAL: FileDef = {
         { name: "DATA_PROPOSTA", type: "date", required: true },
         { name: "STATUS", type: "enum", enumValues: ["Criada", "Aprovada", "Recusada", "Cancelada", "Aceita"], required: true },
         { name: "VALOR_TOTAL_MES", type: "number" },
+        { name: "PERCENTUAL_DESCONTO", type: "number" },
       ],
     },
     {

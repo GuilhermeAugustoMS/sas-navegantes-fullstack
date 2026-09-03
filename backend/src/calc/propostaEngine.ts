@@ -16,6 +16,9 @@
  * - Alimentação só entra se NECESSIDADE_ALIMENTACAO for true.
  * - Integral/Semi-Integral/Estendido só entram se contratados, usando o
  *   VALOR_MES do ProgramasExtras correspondente.
+ * - Desconto percentual (opcional) incide só sobre a Mensalidade, igualmente
+ *   em todas as parcelas (regra confirmada com o usuário ao adicionar o
+ *   wizard "Fazer Proposta").
  */
 
 export interface PrecoSerie {
@@ -38,6 +41,7 @@ export interface GerarParcelasInput {
   diaEntrada: number; // 1-31
   necessidadeAlimentacao: boolean;
   extrasContratados: ProgramaExtraValor[]; // já filtrados para os que o aluno contratou
+  percentualDesconto?: number; // 0-100, incide só sobre a Mensalidade; default 0
 }
 
 export interface ParcelaCalculada {
@@ -79,11 +83,14 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
     diaEntrada,
     necessidadeAlimentacao,
     extrasContratados,
+    percentualDesconto,
   } = input;
 
   if (mesEntrada < 1 || mesEntrada > 12) {
     throw new Error(`Mês de entrada inválido: ${mesEntrada} (esperado 1-12)`);
   }
+
+  const fatorDesconto = 1 - (percentualDesconto ?? 0) / 100;
 
   const extraPor = (nome: ProgramaExtraValor["nome"]) => extrasContratados.find((e) => e.nome === nome)?.valorMes ?? 0;
   const integralMes = extraPor("Integral");
@@ -95,7 +102,7 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
   for (let mes = mesEntrada; mes <= 12; mes++) {
     const fracao = fracaoDoMes(mes, mesEntrada, diaEntrada, ano);
 
-    const mensalidade = round2(precoSerie.MENSALIDADE * fracao * mult);
+    const mensalidade = round2(precoSerie.MENSALIDADE * fracao * mult * fatorDesconto);
     const material = round2(precoSerie.MATERIAL_DIDATICO * fracao * mult);
     const materialIngles = round2(precoSerie.MATERIAL_DIDATICO_INGLES * fracao * mult);
     const alimentacao = necessidadeAlimentacao ? round2(precoSerie.ALIMENTACAO * fracao * mult) : 0;

@@ -123,6 +123,83 @@ describe("CalculationEngine — gerarParcelas (Gerador de Proposta)", () => {
     expect(maio.valorIntegral).toBe(910);
   });
 
+  it("não altera nada quando percentualDesconto é omitido ou 0 (retrocompatibilidade)", () => {
+    const semCampo = gerarParcelas({
+      precoSerie: PRECO_SERIE,
+      multiplicadorFormaPagamento: 1,
+      anoReferencia: 2027,
+      mesEntrada: 1,
+      diaEntrada: 1,
+      necessidadeAlimentacao: true,
+      extrasContratados: [],
+    });
+    const comZero = gerarParcelas({
+      precoSerie: PRECO_SERIE,
+      multiplicadorFormaPagamento: 1,
+      anoReferencia: 2027,
+      mesEntrada: 1,
+      diaEntrada: 1,
+      necessidadeAlimentacao: true,
+      extrasContratados: [],
+      percentualDesconto: 0,
+    });
+
+    expect(semCampo[0].valorMensalidade).toBe(1600);
+    expect(comZero[0].valorMensalidade).toBe(1600);
+  });
+
+  it("aplica percentualDesconto só sobre a Mensalidade, mantendo os demais componentes intactos", () => {
+    const [parcela1] = gerarParcelas({
+      precoSerie: PRECO_SERIE,
+      multiplicadorFormaPagamento: 1,
+      anoReferencia: 2027,
+      mesEntrada: 1,
+      diaEntrada: 1,
+      necessidadeAlimentacao: true,
+      extrasContratados: [],
+      percentualDesconto: 10,
+    });
+
+    expect(parcela1.valorMensalidade).toBeCloseTo(1600 * 0.9, 2);
+    expect(parcela1.valorMaterialDidatico).toBe(290);
+    expect(parcela1.valorMaterialDidaticoIngles).toBe(40);
+    expect(parcela1.valorAlimentacao).toBe(350);
+  });
+
+  it("aplica o mesmo percentualDesconto em todas as parcelas do ano (não escalonado)", () => {
+    const parcelas = gerarParcelas({
+      precoSerie: PRECO_SERIE,
+      multiplicadorFormaPagamento: 1,
+      anoReferencia: 2027,
+      mesEntrada: 3,
+      diaEntrada: 1,
+      necessidadeAlimentacao: false,
+      extrasContratados: [],
+      percentualDesconto: 20,
+    });
+
+    for (const p of parcelas) {
+      expect(p.valorMensalidade).toBeCloseTo(1600 * 0.8, 2);
+    }
+  });
+
+  it("combina percentualDesconto com rateio do mês de entrada e multiplicador da forma de pagamento", () => {
+    // Agosto/2027 tem 31 dias; entrada dia 16 -> fração 16/31.
+    const [parcela1] = gerarParcelas({
+      precoSerie: PRECO_SERIE,
+      multiplicadorFormaPagamento: 0.92,
+      anoReferencia: 2027,
+      mesEntrada: 8,
+      diaEntrada: 16,
+      necessidadeAlimentacao: false,
+      extrasContratados: [],
+      percentualDesconto: 10,
+    });
+
+    const esperado = 1600 * (16 / 31) * 0.92 * 0.9;
+    expect(parcela1.valorMensalidade).toBeCloseTo(esperado, 2);
+  });
+
   it("rejeita mês de entrada fora do intervalo 1-12", () => {
     expect(() =>
       gerarParcelas({

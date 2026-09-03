@@ -58,4 +58,5 @@ export interface GerarParcelasInput {
   CONTRATOU_INTEGRAL?: boolean;
   CONTRATOU_SEMI_INTEGRAL?: boolean;
   CONTRATOU_ESTENDIDO?: boolean;
+  PERCENTUAL_DESCONTO?: number;
 }

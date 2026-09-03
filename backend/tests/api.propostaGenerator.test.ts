@@ -140,6 +140,87 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
     expect(segunda.body.error).toBe("PARCELAS_JA_GERADAS");
   });
 
+  it("aplica e persiste PERCENTUAL_DESCONTO ao confirmar a proposta", async () => {
+    const { proposta, formaPagamento } = await montarFixtures();
+
+    const res = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+      ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+      MES_ENTRADA: 1,
+      DIA_ENTRADA: 1,
+      NECESSIDADE_ALIMENTACAO: false,
+      PERCENTUAL_DESCONTO: 10,
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.parcelas[0].valorMensalidade).toBeCloseTo(1600 * 0.9, 2);
+
+    const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+    expect(propostaAtualizada.body.PERCENTUAL_DESCONTO).toBe(10);
+  });
+
+  it("não persiste PERCENTUAL_DESCONTO em modo preview", async () => {
+    const { proposta, formaPagamento } = await montarFixtures();
+
+    const res = await request(app)
+      .post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas?preview=true`)
+      .send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: false,
+        PERCENTUAL_DESCONTO: 10,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.parcelas[0].valorMensalidade).toBeCloseTo(1600 * 0.9, 2);
+
+    const propostaInalterada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+    expect(propostaInalterada.body.PERCENTUAL_DESCONTO ?? null).toBeFalsy();
+  });
+
+  it("mantém compatibilidade quando PERCENTUAL_DESCONTO não é enviado no body", async () => {
+    const { proposta, formaPagamento } = await montarFixtures();
+
+    const res = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+      ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+      MES_ENTRADA: 1,
+      DIA_ENTRADA: 1,
+      NECESSIDADE_ALIMENTACAO: true,
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.parcelas[0].valorMensalidade).toBe(1600);
+
+    const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+    expect(propostaAtualizada.body.PERCENTUAL_DESCONTO).toBe(0);
+  });
+
+  it("rejeita PERCENTUAL_DESCONTO fora da faixa 0-100 (regra de negócio, 422)", async () => {
+    const { proposta, formaPagamento } = await montarFixtures();
+
+    const acima = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+      ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+      MES_ENTRADA: 1,
+      DIA_ENTRADA: 1,
+      NECESSIDADE_ALIMENTACAO: true,
+      PERCENTUAL_DESCONTO: 150,
+    });
+    expect(acima.status).toBe(422);
+    expect(acima.body.error).toBe("REGRA_DE_NEGOCIO");
+    expect(acima.body.detalhes.some((d: { field: string }) => d.field === "PERCENTUAL_DESCONTO")).toBe(true);
+
+    const abaixo = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+      ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+      MES_ENTRADA: 1,
+      DIA_ENTRADA: 1,
+      NECESSIDADE_ALIMENTACAO: true,
+      PERCENTUAL_DESCONTO: -5,
+    });
+    expect(abaixo.status).toBe(422);
+    expect(abaixo.body.error).toBe("REGRA_DE_NEGOCIO");
+    expect(abaixo.body.detalhes.some((d: { field: string }) => d.field === "PERCENTUAL_DESCONTO")).toBe(true);
+  });
+
   it("rejeita quando não há Tabela de Preços ativa para a série (regra de negócio, 422)", async () => {
     // Fixtures manuais sem TabelaPrecos.
     const anoLetivo = await request(app).post("/api/cadastros/anos-letivos").send({ ANO: 2027, ATIVO: true });
