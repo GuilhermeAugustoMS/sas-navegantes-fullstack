@@ -4,3 +4,7 @@ backend/data/
 *.local
 .env
 .env.local
+
+# Planilhas reais do usuário (dados de alunos/financeiro) -- nunca versionar.
+Excel mensalidades Navegantes.xlsx
+*.xlsx
