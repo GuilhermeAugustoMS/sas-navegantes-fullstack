@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
+import { useCatalog } from "../context/CatalogContext";
+import { ConfirmDialog } from "./ConfirmDialog";
 import type { GerarParcelasInput, ParcelaProposta, RecordRow } from "../api/types";
 
 const MESES = [
@@ -29,8 +31,13 @@ interface Props {
  * congelada (o backend recusa gerar de novo para a mesma Proposta).
  */
 export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, onGerado }: Props) {
+  const { resourceBySlug } = useCatalog();
   const [parcelasExistentes, setParcelasExistentes] = useState<ParcelaProposta[] | null>(null);
   const [checandoExistentes, setChecandoExistentes] = useState(false);
+
+  const [statusProposta, setStatusProposta] = useState<string | null>(null);
+  const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const [idFormaPagamento, setIdFormaPagamento] = useState("");
   const [mesEntrada, setMesEntrada] = useState(1);
@@ -76,6 +83,37 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       cancelled = true;
     };
   }, [propostaId]);
+
+  async function carregarStatusProposta() {
+    const propostasResource = resourceBySlug.get("propostas");
+    if (!propostasResource) return;
+    try {
+      const rec = await api.get(propostasResource, propostaId);
+      setStatusProposta(String(rec.STATUS ?? ""));
+    } catch {
+      setStatusProposta(null);
+    }
+  }
+
+  useEffect(() => {
+    carregarStatusProposta();
+  }, [propostaId, resourceBySlug]);
+
+  async function handleCancelarProposta() {
+    const propostasResource = resourceBySlug.get("propostas");
+    if (!propostasResource) return;
+    setCancelando(true);
+    try {
+      await api.update(propostasResource, propostaId, { STATUS: "Cancelada" }, usuario);
+      await carregarStatusProposta();
+      setToast("Proposta cancelada.");
+    } catch (err) {
+      tratarErro(err);
+    } finally {
+      setCancelando(false);
+      setConfirmandoCancelamento(false);
+    }
+  }
 
   function montarInput(): GerarParcelasInput {
     return {
@@ -141,6 +179,36 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
     <div>
       {toast && (
         <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">{toast}</div>
+      )}
+
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs text-slate-500">
+          Status da Proposta: <span className="font-medium text-slate-700">{statusProposta ?? "—"}</span>
+        </p>
+        {statusProposta !== "Cancelada" && (
+          <button
+            onClick={() => setConfirmandoCancelamento(true)}
+            className="px-3 py-1.5 text-xs rounded-md border border-red-300 text-red-700 hover:bg-red-50"
+          >
+            Cancelar Proposta
+          </button>
+        )}
+      </div>
+
+      {statusProposta === "Cancelada" && (
+        <div className="mb-6 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+          Esta proposta está cancelada.
+        </div>
+      )}
+
+      {confirmandoCancelamento && (
+        <ConfirmDialog
+          title="Cancelar Proposta"
+          message='Isso marca o STATUS da Proposta como "Cancelada". As parcelas já geradas (se houver) continuam gravadas e congeladas, sem alteração. Confirmar?'
+          confirmLabel={cancelando ? "Cancelando..." : "Cancelar Proposta"}
+          onConfirm={handleCancelarProposta}
+          onCancel={() => setConfirmandoCancelamento(false)}
+        />
       )}
 
       {jaGerada && (
