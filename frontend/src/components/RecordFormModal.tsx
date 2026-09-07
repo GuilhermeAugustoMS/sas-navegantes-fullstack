@@ -3,6 +3,7 @@ import type { RecordRow, ResourceDef } from "../api/types";
 import { api, ApiError } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
 import { displayLabel, emptyRecordFor } from "../lib/records";
+import { idadeEm31Marco, nivelParaIdade, seriesSugeridas } from "../lib/serieSugerida";
 
 interface Props {
   resource: ResourceDef;
@@ -26,11 +27,22 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
   const isEdit = record !== null;
   const editableColumns = resource.colunas.filter((c) => !c.isId);
 
-  const [values, setValues] = useState<RecordRow>(() => record ?? { ...emptyRecordFor(editableColumns), ...initialValues });
+  const [values, setValues] = useState<RecordRow>(() => {
+    if (record) return record;
+    const base = emptyRecordFor(editableColumns);
+    for (const [campo, valor] of Object.entries(initialValues ?? {})) {
+      if (valor !== undefined) base[campo] = valor;
+    }
+    return base;
+  });
   const [fkOptions, setFkOptions] = useState<Map<string, RecordRow[]>>(new Map());
   const [fieldErrors, setFieldErrors] = useState<Map<string, string>>(new Map());
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [anoLetivoAtivo, setAnoLetivoAtivo] = useState<RecordRow | null>(null);
+  const [sugestaoSerie, setSugestaoSerie] = useState<{ idade: number; nivel: string | null; opcoes: RecordRow[] } | null>(null);
+
+  const ehAlunoComSerie = resource.aba === "Alunos" && editableColumns.some((c) => c.nome === "ID_SERIE");
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +58,53 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
       cancelled = true;
     };
   }, [resource, getOptions]);
+
+  useEffect(() => {
+    if (!ehAlunoComSerie) return;
+    let cancelled = false;
+    getOptions("AnosLetivos").then((anos) => {
+      if (cancelled) return;
+      setAnoLetivoAtivo(anos.find((a) => a.ATIVO === true) ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ehAlunoComSerie, getOptions]);
+
+  // Sugere a Série a partir da idade completada até 31/03 do ano letivo ativo
+  // (regra confirmada pelo usuário — ver frontend/src/lib/serieSugerida.ts).
+  useEffect(() => {
+    if (!ehAlunoComSerie || !anoLetivoAtivo) {
+      setSugestaoSerie(null);
+      return;
+    }
+    const nascimento = values.DATA_NASCIMENTO;
+    if (typeof nascimento !== "string" || !nascimento) {
+      setSugestaoSerie(null);
+      return;
+    }
+    const idade = idadeEm31Marco(nascimento, Number(anoLetivoAtivo.ANO));
+    if (idade === null) {
+      setSugestaoSerie(null);
+      return;
+    }
+    const todasSeries = fkOptions.get("ID_SERIE") ?? [];
+    const doAnoLetivo = todasSeries.filter((s) => s.ID_ANO_LETIVO === anoLetivoAtivo.ID_ANO_LETIVO && s.ATIVO !== false);
+    const opcoes = seriesSugeridas(doAnoLetivo, idade);
+    setSugestaoSerie({ idade, nivel: nivelParaIdade(idade), opcoes });
+
+    if (opcoes.length === 1) {
+      setValues((prev) => (prev.ID_SERIE === opcoes[0].ID_SERIE ? prev : { ...prev, ID_SERIE: opcoes[0].ID_SERIE }));
+    } else if (opcoes.length > 1) {
+      setValues((prev) => {
+        const atual = prev.ID_SERIE;
+        if (typeof atual === "string" && opcoes.some((s) => s.ID_SERIE === atual)) return prev;
+        return { ...prev, ID_SERIE: "" };
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ehAlunoComSerie, anoLetivoAtivo, values.DATA_NASCIMENTO, fkOptions]);
 
   function setField(name: string, value: unknown) {
     setValues((prev) => ({ ...prev, [name]: value as RecordRow[string] }));
@@ -126,22 +185,36 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
                 </label>
 
                 {fk ? (
-                  <select
-                    value={typeof value === "string" ? value : ""}
-                    onChange={(e) => setField(col.nome, e.target.value)}
-                    className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm"
-                  >
-                    <option value="">— selecione —</option>
-                    {(fkOptions.get(col.nome) ?? []).map((opt) => {
-                      const targetResource = resourceBySheet.get(fk.targetSheet);
-                      const optId = targetResource ? (opt[targetResource.idField] as string) : "";
-                      return (
-                        <option key={optId} value={optId}>
-                          {displayLabel(opt)} ({optId})
-                        </option>
-                      );
-                    })}
-                  </select>
+                  <>
+                    <select
+                      value={typeof value === "string" ? value : ""}
+                      onChange={(e) => setField(col.nome, e.target.value)}
+                      className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm"
+                    >
+                      <option value="">— selecione —</option>
+                      {(col.nome === "ID_SERIE" && sugestaoSerie && sugestaoSerie.opcoes.length > 0
+                        ? sugestaoSerie.opcoes
+                        : fkOptions.get(col.nome) ?? []
+                      ).map((opt) => {
+                        const targetResource = resourceBySheet.get(fk.targetSheet);
+                        const optId = targetResource ? (opt[targetResource.idField] as string) : "";
+                        return (
+                          <option key={optId} value={optId}>
+                            {displayLabel(opt)} ({optId})
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {col.nome === "ID_SERIE" && sugestaoSerie && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {sugestaoSerie.nivel
+                          ? `Idade até 31/03: ${sugestaoSerie.idade} anos → sugestão: ${sugestaoSerie.nivel}${
+                              sugestaoSerie.opcoes.length === 0 ? " (nenhuma Série cadastrada para esse nível)" : ""
+                            }`
+                          : `Idade até 31/03: ${sugestaoSerie.idade} anos (nenhum nível corresponde a essa idade)`}
+                      </p>
+                    )}
+                  </>
                 ) : col.tipo === "enum" ? (
                   <select
                     value={typeof value === "string" ? value : ""}

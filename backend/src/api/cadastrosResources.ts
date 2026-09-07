@@ -52,6 +52,7 @@ export const CADASTROS_RESOURCES: ResourceDef[] = [
     label: "Alunos",
     foreignKeys: [
       { field: "ID_UNIDADE", targetSheet: "Unidades" },
+      { field: "ID_SERIE", targetSheet: "Series" },
       { field: "ID_TURMA", targetSheet: "Turmas" },
       { field: "ID_TURNO", targetSheet: "Turnos" },
     ],

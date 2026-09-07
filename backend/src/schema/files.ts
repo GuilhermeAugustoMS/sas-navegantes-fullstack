@@ -14,6 +14,7 @@ export const CADASTROS: FileDef = {
         { name: "DATA_NASCIMENTO", type: "date", required: true },
         { name: "GENERO", type: "text" },
         { name: "ID_UNIDADE", type: "text", required: true },
+        { name: "ID_SERIE", type: "text" },
         { name: "ID_TURMA", type: "text" },
         { name: "ID_TURNO", type: "text" },
         { name: "NECESSIDADE_ALIMENTACAO", type: "boolean" },
