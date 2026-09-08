@@ -87,9 +87,9 @@ const MODULE_ICONS: Record<string, () => ReactNode> = {
  * wizard/gerador de proposta). Dashboard é um item fixo à parte, sem popup.
  *
  * Visual inspirado numa referência (SRMS) que o usuário pediu para seguir em
- * 2026-09-07: item ativo vira uma pílula branca com ícone/texto na cor da
- * marca, mantendo o fundo navy da identidade da escola (decisão explícita:
- * não trocar para o azul cheio da referência).
+ * 2026-09-07: item ativo vira uma pílula com ícone/texto sobre o fundo navy
+ * da identidade da escola. Cor da pílula ajustada para o âmbar da logo
+ * (--color-brand-amber) por pedido do usuário -- era branca antes.
  */
 export function Sidebar({ resources, activeSlug, onSelect }: Props) {
   const [openModuleKey, setOpenModuleKey] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export function Sidebar({ resources, activeSlug, onSelect }: Props) {
 
   function itemClasses(ativo: boolean): string {
     return `w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-      ativo ? "bg-white text-brand-blue-dark shadow-sm" : "text-white/80 hover:bg-white/10 hover:text-white"
+      ativo ? "bg-brand-amber text-brand-navy shadow-sm" : "text-white/80 hover:bg-white/10 hover:text-white"
     }`;
   }
 
