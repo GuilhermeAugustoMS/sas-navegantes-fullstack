@@ -135,7 +135,7 @@ describe("ExcelRepository.ensureFile - migração de schema em arquivo já exist
       ws.addRow(sheet.columns.map((c) => c.name));
     }
     const wsReceitas = wbAntigo.getWorksheet("Receitas")!;
-    wsReceitas.addRow(["REC_000001", "", "", "UNI_000001", "Mensalidade", "", "2026-01", "", 1700, "Pago", "", "não pode se perder"]);
+    wsReceitas.addRow(["REC_000001", "", "", "Mensalidade", "", "2026-01", "", 1700, "Pago", "", "não pode se perder"]);
     await wbAntigo.xlsx.writeFile(path.join(tmpRoot, FINANCEIRO.fileName));
 
     await repo.ensureFile(FINANCEIRO);

@@ -50,13 +50,15 @@ export function resourceCatalog(resources: ResourceDef[], apiBase: string) {
       foreignKeys: (r.foreignKeys ?? []).map((fk) => ({ field: fk.field, targetSheet: fk.targetSheet })),
       // Coluna de ID incluída (com isId:true) para o frontend saber a chave de
       // cada linha e montar links de FK, mas o form de edição a ignora (é gerada pelo backend).
-      colunas: sheetDef.columns.map((c) => ({
-        nome: c.name,
-        tipo: c.type,
-        obrigatorio: Boolean(c.required),
-        valoresPermitidos: c.enumValues ?? null,
-        isId: Boolean(c.isId),
-      })),
+      colunas: sheetDef.columns
+        .filter((c) => !(r.hiddenColumns ?? []).includes(c.name))
+        .map((c) => ({
+          nome: c.name,
+          tipo: c.type,
+          obrigatorio: Boolean(c.required),
+          valoresPermitidos: c.enumValues ?? null,
+          isId: Boolean(c.isId),
+        })),
     };
   });
 }

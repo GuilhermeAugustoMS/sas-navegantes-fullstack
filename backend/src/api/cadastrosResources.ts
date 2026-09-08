@@ -2,7 +2,6 @@ import { CADASTROS } from "../schema/files.js";
 import type { ResourceDef } from "./resourceTypes.js";
 
 export const CADASTROS_RESOURCES: ResourceDef[] = [
-  { slug: "unidades", file: CADASTROS, sheetName: "Unidades", label: "Unidades" },
   { slug: "anos-letivos", file: CADASTROS, sheetName: "AnosLetivos", label: "Anos Letivos" },
   {
     slug: "series",
@@ -13,13 +12,7 @@ export const CADASTROS_RESOURCES: ResourceDef[] = [
   },
   { slug: "turnos", file: CADASTROS, sheetName: "Turnos", label: "Turnos" },
   { slug: "modalidades", file: CADASTROS, sheetName: "Modalidades", label: "Modalidades" },
-  {
-    slug: "salas",
-    file: CADASTROS,
-    sheetName: "Salas",
-    label: "Salas",
-    foreignKeys: [{ field: "ID_UNIDADE", targetSheet: "Unidades" }],
-  },
+  { slug: "salas", file: CADASTROS, sheetName: "Salas", label: "Salas" },
   {
     slug: "turmas",
     file: CADASTROS,
@@ -51,7 +44,6 @@ export const CADASTROS_RESOURCES: ResourceDef[] = [
     sheetName: "Alunos",
     label: "Alunos",
     foreignKeys: [
-      { field: "ID_UNIDADE", targetSheet: "Unidades" },
       { field: "ID_SERIE", targetSheet: "Series" },
       { field: "ID_TURMA", targetSheet: "Turmas" },
       { field: "ID_TURNO", targetSheet: "Turnos" },

@@ -23,7 +23,7 @@ npm start      # sobe a API a partir de dist/ (após npm run build)
 - **`src/excel/audit.ts`** — toda criação/alteração grava uma linha em `07_AUDITORIA.xlsx / LogsAlteracoes` com usuário, data, hora, ação, arquivo, aba, ID, campo, valor anterior e valor novo (Seção 44).
 ## API REST de Cadastros (Controller → Service → Business Rules → ExcelRepository — Seção 47)
 
-Uma API fina em Express, cobrindo as 14 abas de `01_CADASTROS.xlsx`. Nada de regra de negócio no Controller — ele só traduz HTTP; quem valida integridade referencial (ex.: `Aluno.ID_UNIDADE` precisa existir e estar ativo em `Unidades`) é o `CadastrosService`, antes de chamar o `ExcelRepository`.
+Uma API fina em Express, cobrindo as abas de `01_CADASTROS.xlsx`. Nada de regra de negócio no Controller — ele só traduz HTTP; quem valida integridade referencial (ex.: `Aluno.ID_SERIE` precisa existir e estar ativo em `Series`) é o `CadastrosService`, antes de chamar o `ExcelRepository`.
 
 - **`src/api/resources.ts`** — catálogo de recursos (slug da rota → aba do Excel → chaves estrangeiras a validar).
 - **`src/services/CadastrosService.ts`** — regra de negócio: toda FK informada precisa apontar para um registro existente e ativo (senão, `422 REGRA_DE_NEGOCIO`).
@@ -33,15 +33,15 @@ Uma API fina em Express, cobrindo as 14 abas de `01_CADASTROS.xlsx`. Nada de reg
 
 ### Rotas (uma por recurso, em `/api/cadastros/<slug>`)
 
-`unidades`, `anos-letivos`, `series`, `turnos`, `modalidades`, `salas`, `turmas`, `cargos`, `equipes`, `funcionarios`, `centros-custo`, `responsaveis`, `alunos`, `vinculos-responsavel`
+`anos-letivos`, `series`, `turnos`, `modalidades`, `salas`, `turmas`, `cargos`, `equipes`, `funcionarios`, `centros-custo`, `responsaveis`, `alunos`, `vinculos-responsavel`
 
 Cada um expõe `GET /` (lista, aceita `?ativo=true` e filtros por campo), `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` (exclusão lógica). `GET /api/cadastros/_catalogo` lista os recursos disponíveis, para a tela de Cadastros não precisar hardcodar rotas.
 
 Exemplo:
 ```bash
-curl -X POST http://localhost:3333/api/cadastros/unidades \
+curl -X POST http://localhost:3333/api/cadastros/anos-letivos \
   -H "Content-Type: application/json" -H "x-usuario: guilherme" \
-  -d '{"NOME":"Unidade Carajás","ATIVO":true}'
+  -d '{"ANO":2026,"ATIVO":true}'
 ```
 
 ## Testes (`tests/`)

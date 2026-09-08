@@ -13,7 +13,6 @@ export const CADASTROS: FileDef = {
         { name: "NOME", type: "text", required: true },
         { name: "DATA_NASCIMENTO", type: "date", required: true },
         { name: "GENERO", type: "text" },
-        { name: "ID_UNIDADE", type: "text", required: true },
         { name: "ID_SERIE", type: "text" },
         { name: "ID_TURMA", type: "text" },
         { name: "ID_TURNO", type: "text" },
@@ -44,15 +43,6 @@ export const CADASTROS: FileDef = {
         { name: "ID_ALUNO", type: "text", required: true },
         { name: "ID_RESPONSAVEL", type: "text", required: true },
         { name: "TIPO", type: "enum", enumValues: ["Legal", "Financeiro", "Legal e Financeiro"], required: true },
-        { name: "ATIVO", type: "boolean", required: true },
-      ],
-    },
-    {
-      name: "Unidades",
-      idPrefix: "UNI",
-      columns: [
-        { name: "ID_UNIDADE", type: "text", required: true, isId: true },
-        { name: "NOME", type: "text", required: true },
         { name: "ATIVO", type: "boolean", required: true },
       ],
     },
@@ -95,7 +85,6 @@ export const CADASTROS: FileDef = {
       columns: [
         { name: "ID_SALA", type: "text", required: true, isId: true },
         { name: "NOME", type: "text", required: true },
-        { name: "ID_UNIDADE", type: "text", required: true },
         { name: "CAPACIDADE", type: "number", required: true },
         { name: "ATIVO", type: "boolean", required: true },
       ],
@@ -170,7 +159,6 @@ export const FINANCEIRO: FileDef = {
         { name: "ID_LANCAMENTO", type: "text", required: true, isId: true },
         { name: "ID_ALUNO", type: "text" },
         { name: "ID_RESPONSAVEL", type: "text" },
-        { name: "ID_UNIDADE", type: "text", required: true },
         { name: "TIPO", type: "text", required: true },
         { name: "CATEGORIA", type: "text" },
         { name: "COMPETENCIA", type: "text", required: true },
@@ -187,7 +175,6 @@ export const FINANCEIRO: FileDef = {
       columns: [
         { name: "ID_LANCAMENTO", type: "text", required: true, isId: true },
         { name: "ID_CENTRO_CUSTO", type: "text" },
-        { name: "ID_UNIDADE", type: "text", required: true },
         { name: "TIPO", type: "text", required: true },
         { name: "CATEGORIA", type: "text" },
         { name: "COMPETENCIA", type: "text", required: true },
@@ -302,7 +289,6 @@ export const ORCAMENTO: FileDef = {
       columns: [
         { name: "ID_ORCAMENTO", type: "text", required: true, isId: true },
         { name: "ID_ANO_LETIVO", type: "text", required: true },
-        { name: "ID_UNIDADE", type: "text", required: true },
         { name: "ATIVO", type: "boolean", required: true },
       ],
     },

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Sidebar, GERADOR_PROPOSTA_SLUG, FAZER_PROPOSTA_SLUG } from "../components/Sidebar";
+import { Sidebar, GERADOR_PROPOSTA_SLUG, FAZER_PROPOSTA_SLUG, DASHBOARD_SLUG } from "../components/Sidebar";
 import { DataTable } from "../components/DataTable";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { TopBar } from "../components/TopBar";
 import { PropostaGeneratorPage } from "./PropostaGeneratorPage";
 import { FazerPropostaPage } from "./FazerPropostaPage";
+import { DashboardPage } from "./DashboardPage";
 import { useCatalog } from "../context/CatalogContext";
 import { useUsuario } from "../hooks/useUsuario";
 import { api, ApiError } from "../api/client";
@@ -25,12 +27,14 @@ export function CrudPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeSlug && resources.length > 0) setActiveSlug(resources[0].slug);
-  }, [resources, activeSlug]);
+    if (!activeSlug) setActiveSlug(DASHBOARD_SLUG);
+  }, [activeSlug]);
 
+  const isDashboard = activeSlug === DASHBOARD_SLUG;
   const isGeradorProposta = activeSlug === GERADOR_PROPOSTA_SLUG;
   const isFazerProposta = activeSlug === FAZER_PROPOSTA_SLUG;
-  const resource = activeSlug && !isGeradorProposta && !isFazerProposta ? resourceBySlug.get(activeSlug) ?? null : null;
+  const resource =
+    activeSlug && !isDashboard && !isGeradorProposta && !isFazerProposta ? resourceBySlug.get(activeSlug) ?? null : null;
   const showAtivo = resource ? hasAtivo(resource) : false;
 
   const loadRows = useCallback(async () => {
@@ -92,40 +96,38 @@ export function CrudPage() {
       <Sidebar resources={resources} activeSlug={activeSlug} onSelect={setActiveSlug} />
 
       <main className="flex-1 overflow-y-auto">
-        {isGeradorProposta ? (
+        {isDashboard ? (
+          <>
+            <TopBar title="Dashboard" subtitle="Visão geral do sistema" usuario={usuario} onUsuarioChange={setUsuario} />
+            <div className="p-6">
+              <DashboardPage />
+            </div>
+          </>
+        ) : isGeradorProposta ? (
           <PropostaGeneratorPage />
         ) : isFazerProposta ? (
           <FazerPropostaPage />
         ) : (
           <>
-            <header className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">{resource?.label ?? "Sas Navegantes"}</h2>
-                {resource && <p className="text-xs text-slate-400 font-mono">{resource.arquivo} — {resource.aba}</p>}
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-xs text-slate-500 flex items-center gap-1">
-                  Usuário:
-                  <input
-                    value={usuario}
-                    onChange={(e) => setUsuario(e.target.value)}
-                    className="border border-slate-300 rounded px-2 py-1 text-xs w-28"
-                  />
+            <TopBar
+              title={resource?.label ?? "Sas Navegantes"}
+              subtitle={resource ? `${resource.arquivo} — ${resource.aba}` : undefined}
+              usuario={usuario}
+              onUsuarioChange={setUsuario}
+            >
+              {showAtivo && (
+                <label className="text-xs text-slate-600 flex items-center gap-1">
+                  <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+                  mostrar inativos
                 </label>
-                {showAtivo && (
-                  <label className="text-xs text-slate-600 flex items-center gap-1">
-                    <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-                    mostrar inativos
-                  </label>
-                )}
-                <button
-                  onClick={() => setEditing("novo")}
-                  className="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  + Novo
-                </button>
-              </div>
-            </header>
+              )}
+              <button
+                onClick={() => setEditing("novo")}
+                className="px-3 py-1.5 text-sm rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark"
+              >
+                + Novo
+              </button>
+            </TopBar>
 
             <div className="p-6">
               {toast && (

@@ -26,7 +26,6 @@ export const FINANCEIRO_RESOURCES: ResourceDef[] = [
     foreignKeys: [
       { field: "ID_ALUNO", targetSheet: "Alunos", targetFile: CADASTROS },
       { field: "ID_RESPONSAVEL", targetSheet: "Responsaveis", targetFile: CADASTROS },
-      { field: "ID_UNIDADE", targetSheet: "Unidades", targetFile: CADASTROS },
     ],
   },
   {
@@ -34,10 +33,7 @@ export const FINANCEIRO_RESOURCES: ResourceDef[] = [
     file: FINANCEIRO,
     sheetName: "Despesas",
     label: "Despesas",
-    foreignKeys: [
-      { field: "ID_CENTRO_CUSTO", targetSheet: "CentrosCusto", targetFile: CADASTROS },
-      { field: "ID_UNIDADE", targetSheet: "Unidades", targetFile: CADASTROS },
-    ],
+    foreignKeys: [{ field: "ID_CENTRO_CUSTO", targetSheet: "CentrosCusto", targetFile: CADASTROS }],
   },
   {
     slug: "contas-pagar",

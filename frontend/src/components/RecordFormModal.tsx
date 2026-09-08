@@ -274,7 +274,7 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
             <button
               type="submit"
               disabled={saving}
-              className="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark disabled:opacity-50"
             >
               {saving ? "Salvando..." : "Salvar"}
             </button>

@@ -27,38 +27,27 @@ describe("API REST de Cadastros", () => {
   });
 
   it("lista vazio no início", async () => {
-    const res = await request(app).get("/api/cadastros/unidades");
+    const res = await request(app).get("/api/cadastros/alunos");
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
 
-  it("cria uma Unidade e devolve o ID gerado", async () => {
-    const res = await request(app)
-      .post("/api/cadastros/unidades")
-      .set("x-usuario", "gui")
-      .send({ NOME: "Unidade Carajás", ATIVO: true });
-
-    expect(res.status).toBe(201);
-    expect(res.body.ID_UNIDADE).toBe("UNI_000001");
-    expect(res.body.__row).toBeUndefined(); // detalhe interno não deve vazar na API
-  });
-
-  it("rejeita criação de Aluno referenciando Unidade inexistente (regra de negócio, 422)", async () => {
+  it("rejeita criação de Aluno referenciando Série inexistente (regra de negócio, 422)", async () => {
     const res = await request(app)
       .post("/api/cadastros/alunos")
-      .send({ NOME: "Aluno Teste", DATA_NASCIMENTO: "2019-01-01", ID_UNIDADE: "UNI_999999", DATA_CADASTRO: "2026-01-01", ATIVO: true });
+      .send({ NOME: "Aluno Teste", DATA_NASCIMENTO: "2019-01-01", ID_SERIE: "SER_999999", DATA_CADASTRO: "2026-01-01", ATIVO: true });
 
     expect(res.status).toBe(422);
     expect(res.body.error).toBe("REGRA_DE_NEGOCIO");
   });
 
-  it("cria um Aluno com FK válida (fluxo completo da tela de Cadastros)", async () => {
+  it("cria um Aluno (fluxo completo da tela de Cadastros)", async () => {
     const res = await request(app)
       .post("/api/cadastros/alunos")
+      .set("x-usuario", "gui")
       .send({
         NOME: "Laura",
         DATA_NASCIMENTO: "2024-08-23",
-        ID_UNIDADE: "UNI_000001",
         DATA_CADASTRO: "2026-09-02",
         ATIVO: true,
       });
@@ -66,6 +55,7 @@ describe("API REST de Cadastros", () => {
     expect(res.status).toBe(201);
     expect(res.body.ID_ALUNO).toBe("ALU_000001");
     expect(res.body.NOME).toBe("Laura");
+    expect(res.body.__row).toBeUndefined(); // detalhe interno não deve vazar na API
   });
 
   it("busca por ID", async () => {
@@ -80,7 +70,7 @@ describe("API REST de Cadastros", () => {
   });
 
   it("valida payload malformado (400)", async () => {
-    const res = await request(app).post("/api/cadastros/unidades").send({ ATIVO: true }); // NOME obrigatório ausente
+    const res = await request(app).post("/api/cadastros/anos-letivos").send({ ATIVO: true }); // ANO obrigatório ausente
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("VALIDACAO");
   });

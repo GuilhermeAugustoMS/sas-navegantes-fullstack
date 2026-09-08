@@ -304,7 +304,7 @@ export function FazerPropostaPage() {
               </button>
               <button
                 onClick={handleNovaVersao}
-                className="w-full px-3 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                className="w-full px-3 py-1.5 text-xs rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark"
               >
                 Criar Nova Proposta
               </button>

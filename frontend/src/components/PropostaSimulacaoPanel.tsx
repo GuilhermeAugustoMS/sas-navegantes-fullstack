@@ -36,6 +36,8 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
   const [checandoExistentes, setChecandoExistentes] = useState(false);
 
   const [statusProposta, setStatusProposta] = useState<string | null>(null);
+  const [descontoPersistido, setDescontoPersistido] = useState<number | null>(null);
+  const [descontoAberto, setDescontoAberto] = useState(false);
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
   const [cancelando, setCancelando] = useState(false);
 
@@ -90,8 +92,10 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
     try {
       const rec = await api.get(propostasResource, propostaId);
       setStatusProposta(String(rec.STATUS ?? ""));
+      setDescontoPersistido(typeof rec.PERCENTUAL_DESCONTO === "number" ? rec.PERCENTUAL_DESCONTO : null);
     } catch {
       setStatusProposta(null);
+      setDescontoPersistido(null);
     }
   }
 
@@ -143,7 +147,6 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
     setSimulando(true);
     setErro(null);
     setDetalhesErro(null);
-    setPreview(null);
     try {
       const res = await api.simularParcelas(propostaId, montarInput());
       setPreview(res);
@@ -154,6 +157,18 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
     }
   }
 
+  // Recalcula a Prévia automaticamente quando o desconto é ajustado no painel
+  // expansível (só depois da 1ª simulação manual, e só antes de confirmar --
+  // uma vez congeladas, as parcelas não recalculam mais, Seção 54).
+  useEffect(() => {
+    if (jaGerada || !preview || !descontoAberto) return;
+    const t = setTimeout(() => {
+      handleSimular();
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [percentualDesconto]);
+
   async function handleConfirmar() {
     if (!propostaId || !idFormaPagamento) return;
     setConfirmando(true);
@@ -163,6 +178,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       const res = await api.gerarParcelas(propostaId, montarInput(), usuario);
       setPreview(res);
       setParcelasExistentes(res.parcelas);
+      setDescontoPersistido(percentualDesconto);
       setToast("Proposta gerada e parcelas gravadas com sucesso (histórico congelado).");
       onGerado?.(res);
     } catch (err) {
@@ -285,18 +301,6 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
               <input type="checkbox" checked={contratouEstendido} onChange={(e) => setContratouEstendido(e.target.checked)} />
               Estendido
             </label>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Desconto (%) sobre Mensalidade</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                value={percentualDesconto}
-                onChange={(e) => setPercentualDesconto(Number(e.target.value))}
-                className="w-28 border border-slate-300 rounded px-2 py-1.5 text-sm"
-              />
-            </div>
           </div>
 
           <button
@@ -332,12 +336,47 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
               <button
                 onClick={handleConfirmar}
                 disabled={confirmando}
-                className="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
+                className="px-3 py-1.5 text-sm rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark disabled:opacity-40"
               >
                 {confirmando ? "Gravando..." : "Confirmar Proposta"}
               </button>
             )}
           </div>
+
+          {!jaGerada && preview && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => setDescontoAberto((v) => !v)}
+                title={descontoAberto ? "Ocultar desconto" : "Aplicar desconto"}
+                aria-label={descontoAberto ? "Ocultar desconto" : "Aplicar desconto"}
+                className="flex flex-col items-center justify-center gap-0.5 h-7 w-7 rounded-md text-slate-400 hover:text-brand-blue-dark hover:bg-slate-100"
+              >
+                <span className="h-1 w-1 rounded-full bg-current" />
+                <span className="h-1 w-1 rounded-full bg-current" />
+                <span className="h-1 w-1 rounded-full bg-current" />
+              </button>
+              {descontoAberto && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-xs font-medium text-slate-600">Desconto (%) sobre Mensalidade</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={percentualDesconto}
+                    onChange={(e) => setPercentualDesconto(Number(e.target.value))}
+                    className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                  />
+                  {simulando && <span className="text-xs text-slate-400">recalculando...</span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {jaGerada && descontoPersistido !== null && descontoPersistido > 0 && (
+            <p className="text-xs text-slate-500 mb-4">Desconto aplicado: {descontoPersistido}%</p>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

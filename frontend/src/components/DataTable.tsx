@@ -100,7 +100,7 @@ export function DataTable({ resource, rows, onEdit, onDelete }: Props) {
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <button
                     onClick={() => onEdit(row)}
-                    className="text-indigo-600 hover:text-indigo-800 text-xs font-medium mr-3"
+                    className="text-brand-blue-dark hover:text-brand-navy text-xs font-medium mr-3"
                   >
                     Editar
                   </button>

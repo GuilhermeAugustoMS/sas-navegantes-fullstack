@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/*
+ * Identidade visual da escola (logo do veleiro), extraída pelo usuário em
+ * 2026-09-07 -- ver frontend/src/assets/logo-navegantes.webp. Não são cores
+ * "de sistema" (sucesso/erro/etc, que continuam slate/emerald/red padrão do
+ * Tailwind) -- só a marca: fundo da sidebar, destaque primário e um acento
+ * secundário usado com moderação.
+ */
+@theme {
+  --color-brand-navy: #12314c;
+  --color-brand-blue: #4f93c8;
+  --color-brand-blue-dark: #3f76a0;
+  --color-brand-amber: #f2a93c;
+}
+
 :root {
   color-scheme: light;
 }
