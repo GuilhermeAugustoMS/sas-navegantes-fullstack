@@ -92,6 +92,9 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
   });
 
   it("gera e persiste as parcelas, atualizando VALOR_TOTAL_MES da Proposta", async () => {
+    // Timeout maior: grava 12 parcelas em sequência (I/O real de Excel via
+    // proper-lockfile) -- sob carga (suíte completa rodando em paralelo),
+    // isso passa de 5s por engano nesta máquina, sem ser um bug de lógica.
     const { proposta, formaPagamento } = await montarFixtures();
 
     const res = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
@@ -121,7 +124,7 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
     const listaParcelas = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`);
     expect(listaParcelas.body).toHaveLength(12);
     expect(listaParcelas.body[0]).toMatchObject({ numeroParcela: 1, valorTotal: expect.any(Number) });
-  });
+  }, 15000);
 
   it("recusa gerar parcelas de novo para a mesma proposta (histórico congelado)", async () => {
     const { proposta, formaPagamento } = await montarFixtures();
