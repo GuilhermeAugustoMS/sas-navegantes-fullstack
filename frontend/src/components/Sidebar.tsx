@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { MODULES, type ModuleDef } from "../api/client";
 import type { ResourceDef } from "../api/types";
 import logoNavegantes from "../assets/logo-navegantes.webp";
@@ -14,15 +14,27 @@ export const FAZER_PROPOSTA_SLUG = "__fazer-proposta__";
 /** Slug sentinela para a tela de Dashboard (indicadores gerais) -- ver CrudPage.tsx. */
 export const DASHBOARD_SLUG = "__dashboard__";
 
+const MODULO_OPCOES_PREFIXO = "__modulo-opcoes__:";
+
+/** Slug sentinela para a tela de opções de um módulo (Cadastros/Comercial/
+ * Financeiro) -- lista os recursos daquele módulo na área de conteúdo
+ * principal, em vez do popup que existia antes. Ver CrudPage.tsx e
+ * ModuleOptionsPage.tsx. */
+export function moduloOpcoesSlug(moduloKey: string): string {
+  return `${MODULO_OPCOES_PREFIXO}${moduloKey}`;
+}
+
+/** Extrai a key do módulo de um slug de tela de opções, ou null se o slug
+ * não for um desses. */
+export function parseModuloOpcoesSlug(slug: string | null): string | null {
+  if (!slug || !slug.startsWith(MODULO_OPCOES_PREFIXO)) return null;
+  return slug.slice(MODULO_OPCOES_PREFIXO.length);
+}
+
 interface Props {
   resources: ResourceDef[];
   activeSlug: string | null;
   onSelect: (slug: string) => void;
-}
-
-interface MenuItem {
-  slug: string;
-  label: string;
 }
 
 function IconDashboard() {
@@ -78,13 +90,16 @@ const MODULE_ICONS: Record<string, () => ReactNode> = {
 
 /**
  * Sidebar simplificada: só os grupos principais (Cadastros/Comercial/
- * Financeiro, vindos de MODULES) aparecem como botão único. Clicar abre um
- * popup (mesmo estilo visual de RecordFormModal/ConfirmDialog) listando os
- * recursos daquele módulo -- escolher um ali fecha o popup e chama onSelect
- * normalmente, exatamente como clicar direto na lateral funcionava antes.
- * Um módulo sem nenhum recurso implementado continua oculto (mesma regra de
- * antes), exceto o caso especial do Comercial (que sempre tem pelo menos o
- * wizard/gerador de proposta). Dashboard é um item fixo à parte, sem popup.
+ * Financeiro, vindos de MODULES) aparecem como botão único. Clicar num
+ * grupo navega para a tela de opções daquele módulo (ModuleOptionsPage, na
+ * área de conteúdo principal) -- não é mais um popup. Escolher um recurso
+ * ali navega pro CRUD normalmente, do mesmo jeito que clicar direto na
+ * lateral já funcionava antes. Clicar de novo no mesmo grupo enquanto já se
+ * está dentro de um recurso dele volta pra essa tela de opções (é assim que
+ * se "sobe um nível"). Um módulo sem nenhum recurso implementado continua
+ * oculto (mesma regra de antes), exceto o caso especial do Comercial (que
+ * sempre tem pelo menos o wizard/gerador de proposta). Dashboard é um item
+ * fixo à parte, sem tela de opções.
  *
  * Visual inspirado numa referência (SRMS) que o usuário pediu para seguir em
  * 2026-09-07: item ativo vira uma pílula com ícone/texto sobre o fundo navy
@@ -92,29 +107,16 @@ const MODULE_ICONS: Record<string, () => ReactNode> = {
  * (--color-brand-amber) por pedido do usuário -- era branca antes.
  */
 export function Sidebar({ resources, activeSlug, onSelect }: Props) {
-  const [openModuleKey, setOpenModuleKey] = useState<string | null>(null);
-
   const activeResource = resources.find((r) => r.slug === activeSlug);
   const isComercialAtivo =
     activeSlug === GERADOR_PROPOSTA_SLUG || activeSlug === FAZER_PROPOSTA_SLUG || activeResource?.apiBase === "/api/comercial";
+  const moduloOpcoesAtivo = parseModuloOpcoesSlug(activeSlug);
 
   function isModuloAtivo(mod: ModuleDef): boolean {
+    if (moduloOpcoesAtivo === mod.key) return true;
     if (mod.key === "comercial") return isComercialAtivo;
     return activeResource?.apiBase === mod.apiBase;
   }
-
-  const moduloAberto = MODULES.find((m) => m.key === openModuleKey) ?? null;
-  const itensDoModuloAberto: MenuItem[] = moduloAberto
-    ? [
-        ...(moduloAberto.key === "comercial"
-          ? [
-              { slug: FAZER_PROPOSTA_SLUG, label: "Fazer Proposta" },
-              { slug: GERADOR_PROPOSTA_SLUG, label: "Gerador de Proposta" },
-            ]
-          : []),
-        ...resources.filter((r) => r.apiBase === moduloAberto.apiBase).map((r) => ({ slug: r.slug, label: r.label })),
-      ]
-    : [];
 
   function itemClasses(ativo: boolean): string {
     return `w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -123,79 +125,38 @@ export function Sidebar({ resources, activeSlug, onSelect }: Props) {
   }
 
   return (
-    <>
-      <nav className="w-64 shrink-0 bg-brand-navy h-full overflow-y-auto flex flex-col">
-        <div className="px-4 pt-6 pb-5 border-b border-white/10 flex flex-col items-center text-center gap-2">
-          <img src={logoNavegantes} alt="Sas Navegantes" className="h-14 w-14 rounded-full bg-white/95 p-1.5" />
-          <div>
-            <h1 className="text-sm font-bold text-white tracking-wide">SAS NAVEGANTES</h1>
-            <p className="text-xs text-white/60">Gestão Escolar</p>
-          </div>
+    <nav className="w-64 shrink-0 bg-brand-navy h-full overflow-y-auto flex flex-col">
+      <div className="px-4 pt-6 pb-5 border-b border-white/10 flex flex-col items-center text-center gap-2">
+        <img src={logoNavegantes} alt="Sas Navegantes" className="h-14 w-14 rounded-full bg-white/95 p-1.5" />
+        <div>
+          <h1 className="text-sm font-bold text-white tracking-wide">SAS NAVEGANTES</h1>
+          <p className="text-xs text-white/60">Gestão Escolar</p>
         </div>
+      </div>
 
-        <ul className="py-3 px-3 space-y-1">
-          <li>
-            <button onClick={() => onSelect(DASHBOARD_SLUG)} className={itemClasses(activeSlug === DASHBOARD_SLUG)}>
-              <IconDashboard />
-              Dashboard
-            </button>
-          </li>
-          {MODULES.map((mod) => {
-            const moduleResources = resources.filter((r) => r.apiBase === mod.apiBase);
-            const isComercial = mod.key === "comercial";
-            if (moduleResources.length === 0 && !isComercial) return null;
-            const ativo = isModuloAtivo(mod);
-            const Icone = MODULE_ICONS[mod.key];
-            return (
-              <li key={mod.key}>
-                <button onClick={() => setOpenModuleKey(mod.key)} className={itemClasses(ativo)}>
-                  {Icone && <Icone />}
-                  {mod.label}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {moduloAberto && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm max-h-[80vh] overflow-y-auto">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900">{moduloAberto.label}</h2>
-              <button
-                onClick={() => setOpenModuleKey(null)}
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
-              >
-                ×
+      <ul className="py-3 px-3 space-y-1">
+        <li>
+          <button onClick={() => onSelect(DASHBOARD_SLUG)} className={itemClasses(activeSlug === DASHBOARD_SLUG)}>
+            <IconDashboard />
+            Dashboard
+          </button>
+        </li>
+        {MODULES.map((mod) => {
+          const moduleResources = resources.filter((r) => r.apiBase === mod.apiBase);
+          const isComercial = mod.key === "comercial";
+          if (moduleResources.length === 0 && !isComercial) return null;
+          const ativo = isModuloAtivo(mod);
+          const Icone = MODULE_ICONS[mod.key];
+          return (
+            <li key={mod.key}>
+              <button onClick={() => onSelect(moduloOpcoesSlug(mod.key))} className={itemClasses(ativo)}>
+                {Icone && <Icone />}
+                {mod.label}
               </button>
-            </div>
-
-            <ul className="py-2">
-              {itensDoModuloAberto.map((item) => (
-                <li key={item.slug}>
-                  <button
-                    onClick={() => {
-                      onSelect(item.slug);
-                      setOpenModuleKey(null);
-                    }}
-                    className={`w-full text-left px-5 py-2.5 text-sm transition-colors ${
-                      activeSlug === item.slug
-                        ? "bg-brand-blue/10 text-brand-blue-dark font-medium"
-                        : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                </li>
-              ))}
-              {itensDoModuloAberto.length === 0 && (
-                <li className="px-5 py-3 text-sm text-slate-400">Nenhum recurso disponível ainda.</li>
-              )}
-            </ul>
-          </div>
-        </div>
-      )}
-    </>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

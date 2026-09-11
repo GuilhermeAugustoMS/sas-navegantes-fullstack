@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Sidebar, GERADOR_PROPOSTA_SLUG, FAZER_PROPOSTA_SLUG, DASHBOARD_SLUG } from "../components/Sidebar";
+import {
+  Sidebar,
+  GERADOR_PROPOSTA_SLUG,
+  FAZER_PROPOSTA_SLUG,
+  DASHBOARD_SLUG,
+  moduloOpcoesSlug,
+  parseModuloOpcoesSlug,
+} from "../components/Sidebar";
 import { DataTable } from "../components/DataTable";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -7,9 +14,10 @@ import { TopBar } from "../components/TopBar";
 import { PropostaGeneratorPage } from "./PropostaGeneratorPage";
 import { FazerPropostaPage } from "./FazerPropostaPage";
 import { DashboardPage } from "./DashboardPage";
+import { ModuleOptionsPage } from "./ModuleOptionsPage";
 import { useCatalog } from "../context/CatalogContext";
 import { useUsuario } from "../hooks/useUsuario";
-import { api, ApiError } from "../api/client";
+import { api, ApiError, MODULES } from "../api/client";
 import { hasAtivo } from "../lib/records";
 import type { RecordRow } from "../api/types";
 
@@ -33,9 +41,24 @@ export function CrudPage() {
   const isDashboard = activeSlug === DASHBOARD_SLUG;
   const isGeradorProposta = activeSlug === GERADOR_PROPOSTA_SLUG;
   const isFazerProposta = activeSlug === FAZER_PROPOSTA_SLUG;
+  const moduloOpcoesKey = parseModuloOpcoesSlug(activeSlug);
+  const isModuloOpcoes = moduloOpcoesKey !== null;
   const resource =
-    activeSlug && !isDashboard && !isGeradorProposta && !isFazerProposta ? resourceBySlug.get(activeSlug) ?? null : null;
+    activeSlug && !isDashboard && !isGeradorProposta && !isFazerProposta && !isModuloOpcoes
+      ? resourceBySlug.get(activeSlug) ?? null
+      : null;
   const showAtivo = resource ? hasAtivo(resource) : false;
+
+  // Módulo (Cadastros/Comercial/Financeiro) ao qual a tela atual pertence --
+  // usado pro botão "Voltar" reaparecer dentro de um recurso/sentinela desse
+  // módulo, levando de volta pra tela de opções (ModuleOptionsPage).
+  const moduloAtualKey =
+    isDashboard || isModuloOpcoes
+      ? null
+      : isGeradorProposta || isFazerProposta
+        ? "comercial"
+        : MODULES.find((m) => m.apiBase === resource?.apiBase)?.key ?? null;
+  const moduloAtualLabel = moduloAtualKey ? MODULES.find((m) => m.key === moduloAtualKey)?.label ?? null : null;
 
   const loadRows = useCallback(async () => {
     if (!resource) return;
@@ -103,58 +126,85 @@ export function CrudPage() {
               <DashboardPage />
             </div>
           </>
-        ) : isGeradorProposta ? (
-          <PropostaGeneratorPage />
-        ) : isFazerProposta ? (
-          <FazerPropostaPage />
-        ) : (
+        ) : isModuloOpcoes ? (
           <>
             <TopBar
-              title={resource?.label ?? "Sas Navegantes"}
-              subtitle={resource ? `${resource.arquivo} — ${resource.aba}` : undefined}
+              title={MODULES.find((m) => m.key === moduloOpcoesKey)?.label ?? "Módulo"}
+              subtitle="Escolha um recurso"
               usuario={usuario}
               onUsuarioChange={setUsuario}
-            >
-              {showAtivo && (
-                <label className="text-xs text-slate-600 flex items-center gap-1">
-                  <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-                  mostrar inativos
-                </label>
-              )}
-              <button
-                onClick={() => setEditing("novo")}
-                className="px-3 py-1.5 text-sm rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark"
-              >
-                + Novo
-              </button>
-            </TopBar>
-
+            />
             <div className="p-6">
-              {toast && (
-                <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
-                  {toast}
-                </div>
-              )}
-
-              {rowsError && (
-                <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-                  {rowsError}
-                </div>
-              )}
-
-              {rowsLoading ? (
-                <p className="text-sm text-slate-500">Carregando registros...</p>
-              ) : (
-                resource && (
-                  <DataTable
-                    resource={resource}
-                    rows={rows}
-                    onEdit={(row) => setEditing(row)}
-                    onDelete={(row) => setDeleting(row)}
-                  />
-                )
-              )}
+              <ModuleOptionsPage moduloKey={moduloOpcoesKey!} resources={resources} onSelect={setActiveSlug} />
             </div>
+          </>
+        ) : (
+          <>
+            {moduloAtualKey && moduloAtualLabel && (
+              <div className="px-6 pt-4">
+                <button
+                  onClick={() => setActiveSlug(moduloOpcoesSlug(moduloAtualKey!))}
+                  className="text-xs text-slate-500 hover:text-brand-blue-dark inline-flex items-center gap-1"
+                >
+                  ← Voltar para {moduloAtualLabel}
+                </button>
+              </div>
+            )}
+
+            {isGeradorProposta ? (
+              <PropostaGeneratorPage />
+            ) : isFazerProposta ? (
+              <FazerPropostaPage />
+            ) : (
+              <>
+                <TopBar
+                  title={resource?.label ?? "Sas Navegantes"}
+                  subtitle={resource ? `${resource.arquivo} — ${resource.aba}` : undefined}
+                  usuario={usuario}
+                  onUsuarioChange={setUsuario}
+                >
+                  {showAtivo && (
+                    <label className="text-xs text-slate-600 flex items-center gap-1">
+                      <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+                      mostrar inativos
+                    </label>
+                  )}
+                  <button
+                    onClick={() => setEditing("novo")}
+                    className="px-3 py-1.5 text-sm rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark"
+                  >
+                    + Novo
+                  </button>
+                </TopBar>
+
+                <div className="p-6">
+                  {toast && (
+                    <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
+                      {toast}
+                    </div>
+                  )}
+
+                  {rowsError && (
+                    <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                      {rowsError}
+                    </div>
+                  )}
+
+                  {rowsLoading ? (
+                    <p className="text-sm text-slate-500">Carregando registros...</p>
+                  ) : (
+                    resource && (
+                      <DataTable
+                        resource={resource}
+                        rows={rows}
+                        onEdit={(row) => setEditing(row)}
+                        onDelete={(row) => setDeleting(row)}
+                      />
+                    )
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
       </main>
