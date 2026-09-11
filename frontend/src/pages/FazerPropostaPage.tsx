@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCatalog } from "../context/CatalogContext";
 import { useUsuario } from "../hooks/useUsuario";
 import { api } from "../api/client";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { PropostaSimulacaoPanel } from "../components/PropostaSimulacaoPanel";
+import { encontrarPropostaRascunho } from "../lib/propostaRascunho";
 import type { RecordRow } from "../api/types";
 
 type ModalAberto = "novo-aluno" | "nova-negociacao" | "editar-aluno" | "editar-negociacao" | null;
@@ -44,6 +45,13 @@ export function FazerPropostaPage() {
   const [modoPosConfirmacao, setModoPosConfirmacao] = useState(false);
 
   const [modalAberto, setModalAberto] = useState<ModalAberto>(null);
+
+  // "Criar Nova Proposta" (handleNovaVersao) precisa sempre criar uma
+  // Proposta nova de verdade, nunca reaproveitar um rascunho -- ver
+  // encontrarPropostaRascunho abaixo. Usa ref (não state) porque só serve
+  // pra avisar a próxima execução do efeito de auto-criação, sem precisar
+  // disparar re-render.
+  const forcarNovaPropostaRef = useRef(false);
 
   useEffect(() => {
     async function load() {
@@ -122,32 +130,46 @@ export function FazerPropostaPage() {
     };
   }, [serieIdAtual, resourceBySlug]);
 
-  // Cria a Proposta automaticamente assim que a Negociação está definida.
+  // Cria a Proposta automaticamente assim que a Negociação está definida --
+  // mas antes, reaproveita uma Proposta em rascunho já existente para essa
+  // Negociação (nenhuma parcela gerada ainda), se houver. Sem isso, reabrir
+  // o wizard na mesma Negociação (mesmo só pra consultar, sem confirmar
+  // nada) acumulava uma Proposta órfã nova a cada vez.
   useEffect(() => {
     if (!negociacaoId || propostaId !== null) return;
+    const forcarNova = forcarNovaPropostaRef.current;
+    forcarNovaPropostaRef.current = false;
     let cancelled = false;
-    async function criar() {
+
+    async function resolverProposta() {
       setCriandoProposta(true);
       setErroProposta(null);
       try {
         const propostasResource = resourceBySlug.get("propostas");
         if (!propostasResource) throw new Error("Recurso 'propostas' não encontrado no catálogo.");
+        const candidatas = forcarNova ? [] : await api.list(propostasResource, { id_negociacao: negociacaoId });
+        const rascunho = forcarNova ? null : await encontrarPropostaRascunho(candidatas, api.listarParcelas);
+        if (rascunho) {
+          if (!cancelled) setPropostaId(rascunho);
+          return;
+        }
         const hoje = new Date().toISOString().slice(0, 10);
         const criada = await api.create(propostasResource, { ID_NEGOCIACAO: negociacaoId, DATA_PROPOSTA: hoje, STATUS: "Criada" }, usuario);
         if (!cancelled) setPropostaId(String(criada.ID_PROPOSTA));
       } catch (err) {
-        if (!cancelled) setErroProposta(err instanceof Error ? err.message : "Não foi possível criar a Proposta.");
+        if (!cancelled) setErroProposta(err instanceof Error ? err.message : "Não foi possível criar/carregar a Proposta.");
       } finally {
         if (!cancelled) setCriandoProposta(false);
       }
     }
-    criar();
+    resolverProposta();
     return () => {
       cancelled = true;
     };
   }, [negociacaoId, propostaId, resourceBySlug, usuario]);
 
   function selecionarAluno(id: string) {
+    forcarNovaPropostaRef.current = false;
     setAlunoId(id);
     setNegociacaoId("");
     setPropostaId(null);
@@ -155,12 +177,17 @@ export function FazerPropostaPage() {
   }
 
   function selecionarNegociacao(id: string) {
+    forcarNovaPropostaRef.current = false;
     setNegociacaoId(id);
     setPropostaId(null);
     setModoPosConfirmacao(false);
   }
 
+  // "Criar Nova Proposta": sempre cria uma versão nova de verdade (nunca
+  // reaproveita rascunho), mesmo que já exista uma Proposta confirmada para
+  // essa Negociação -- é assim que se registra uma nova versão.
   function handleNovaVersao() {
+    forcarNovaPropostaRef.current = true;
     setPropostaId(null);
     setModoPosConfirmacao(false);
   }
