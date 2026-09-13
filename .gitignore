@@ -1,10 +1,29 @@
 node_modules/
 dist/
-backend/data/
 *.local
 .env
 .env.local
 
-# Planilhas reais do usuário (dados de alunos/financeiro) -- nunca versionar.
+# Dados reais do app (backend/data/*.xlsx, incluindo BACKUPS/) SÃO
+# versionados a partir de 2026-09-13 -- decisão explícita do usuário,
+# repositório privado. Só ficam de fora os arquivos temporários de escrita
+# interrompida (ExcelRepository grava em .tmp-<pid>-<timestamp> antes do
+# rename atômico -- nunca deveriam sobreviver, mas se sobrarem, não versionar).
+backend/data/*.tmp-*
+backend/data/**/*.tmp-*
+
+# Planilhas de referência ORIGINAIS do usuário (fornecidas para contexto,
+# nunca alteradas nem geradas pelo app) -- nunca versionar.
+Excel base/
 Excel mensalidades Navegantes.xlsx
-*.xlsx
+
+# Qualquer outra planilha solta na raiz do projeto (upload manual, export
+# temporário etc., fora de backend/data/) continua de fora por padrão.
+/*.xlsx
+
+# Pastas duplicadas acidentais (ex.: rodar comandos do diretório errado em
+# alguma sessão anterior criou backend/backend/ e frontend/frontend/, com
+# node_modules e uma cópia velha de dados reais) -- nunca fizeram parte da
+# estrutura do projeto, não versionar.
+backend/backend/
+frontend/frontend/

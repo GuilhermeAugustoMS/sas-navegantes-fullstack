@@ -1,3 +1,8 @@
 node_modules/
 dist/
-data/
+
+# Dados reais (data/*.xlsx, incluindo BACKUPS/) SÃO versionados a partir de
+# 2026-09-13 -- decisão explícita do usuário, repositório privado. Só ficam
+# de fora os arquivos temporários de escrita interrompida.
+data/*.tmp-*
+data/**/*.tmp-*
