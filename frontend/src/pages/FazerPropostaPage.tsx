@@ -186,6 +186,8 @@ export function FazerPropostaPage() {
       propostaId={propostaId}
       formasPagamento={formasPagamento}
       usuario={usuario}
+      aluno={alunoSelecionado}
+      serie={serieAtual ?? null}
       onGerado={() => setModoPosConfirmacao(true)}
     />
   );

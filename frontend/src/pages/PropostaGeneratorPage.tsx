@@ -130,7 +130,14 @@ export function PropostaGeneratorPage() {
       </div>
 
       {propostaId && (
-        <PropostaSimulacaoPanel key={propostaId} propostaId={propostaId} formasPagamento={formasPagamento} usuario={usuario} />
+        <PropostaSimulacaoPanel
+          key={propostaId}
+          propostaId={propostaId}
+          formasPagamento={formasPagamento}
+          usuario={usuario}
+          aluno={alunoSelecionado ?? null}
+          serie={serieSelecionada ?? null}
+        />
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
 import { ConfirmDialog } from "./ConfirmDialog";
+import logoNavegantes from "../assets/logo-navegantes.webp";
 import type { GerarParcelasInput, ParcelaProposta, RecordRow } from "../api/types";
 
 const MESES = [
@@ -21,6 +22,11 @@ interface Props {
   propostaId: string;
   formasPagamento: RecordRow[];
   usuario: string;
+  /** Aluno e Série já resolvidos pela tela-pai (FazerPropostaPage/PropostaGeneratorPage já
+   * fazem essa resolução Proposta -> Negociação -> Aluno/Série) -- só para exibição no
+   * cabeçalho de identificação (Seção "layout parecido com o Excel", 2026-09-13). */
+  aluno?: RecordRow | null;
+  serie?: RecordRow | null;
   /** Disparado depois que a proposta é confirmada e as parcelas gravadas (congeladas). */
   onGerado?: (result: { parcelas: ParcelaProposta[]; valorTotalMes: number }) => void;
 }
@@ -34,12 +40,14 @@ interface Props {
  * (preview) até o usuário confirmar, e uma vez confirmada a proposta fica
  * congelada (o backend recusa gerar de novo para a mesma Proposta).
  */
-export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, onGerado }: Props) {
+export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, aluno, serie, onGerado }: Props) {
   const { resourceBySlug } = useCatalog();
   const [parcelasExistentes, setParcelasExistentes] = useState<ParcelaProposta[] | null>(null);
   const [checandoExistentes, setChecandoExistentes] = useState(false);
 
   const [statusProposta, setStatusProposta] = useState<string | null>(null);
+  const [anoProposta, setAnoProposta] = useState<number | null>(null);
+  const [responsavelNome, setResponsavelNome] = useState<string | null>(null);
   const [descontoPersistido, setDescontoPersistido] = useState<number | null>(null);
   const [descontoEntradaPersistido, setDescontoEntradaPersistido] = useState<number | null>(null);
   const [dataPagamentoEntradaPersistida, setDataPagamentoEntradaPersistida] = useState<string | null>(null);
@@ -108,18 +116,59 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       setQtdParcelasMaterialInglesPersistida(
         typeof rec.QUANTIDADE_PARCELAS_MATERIAL_INGLES === "number" ? rec.QUANTIDADE_PARCELAS_MATERIAL_INGLES : null,
       );
+      const dataProposta = typeof rec.DATA_PROPOSTA === "string" ? rec.DATA_PROPOSTA : null;
+      setAnoProposta(dataProposta ? new Date(dataProposta).getUTCFullYear() : null);
     } catch {
       setStatusProposta(null);
       setDescontoPersistido(null);
       setDescontoEntradaPersistido(null);
       setDataPagamentoEntradaPersistida(null);
       setQtdParcelasMaterialInglesPersistida(null);
+      setAnoProposta(null);
     }
   }
 
   useEffect(() => {
     carregarStatusProposta();
   }, [propostaId, resourceBySlug]);
+
+  // Responsável Financeiro do aluno (cabeçalho de identificação, Seção "layout
+  // parecido com o Excel", 2026-09-13): um aluno pode ter mais de um Responsável
+  // vinculado (ResponsaveisFinanceiros, N:N com TIPO Legal/Financeiro/Legal e
+  // Financeiro) -- prioriza o vínculo "Financeiro", depois "Legal e Financeiro",
+  // conforme decisão do usuário (o documento real só tem espaço para um nome).
+  useEffect(() => {
+    let cancelled = false;
+    async function carregarResponsavel() {
+      const idAluno = aluno ? String(aluno.ID_ALUNO) : "";
+      if (!idAluno) {
+        setResponsavelNome(null);
+        return;
+      }
+      const vinculosResource = resourceBySlug.get("vinculos-responsavel");
+      const responsaveisResource = resourceBySlug.get("responsaveis");
+      if (!vinculosResource || !responsaveisResource) return;
+      try {
+        const vinculos = await api.list(vinculosResource, { id_aluno: idAluno, ativo: "true" });
+        const vinculo =
+          vinculos.find((v) => v.TIPO === "Financeiro") ??
+          vinculos.find((v) => v.TIPO === "Legal e Financeiro") ??
+          null;
+        if (!vinculo) {
+          if (!cancelled) setResponsavelNome(null);
+          return;
+        }
+        const responsavel = await api.get(responsaveisResource, String(vinculo.ID_RESPONSAVEL));
+        if (!cancelled) setResponsavelNome(String(responsavel.NOME ?? ""));
+      } catch {
+        if (!cancelled) setResponsavelNome(null);
+      }
+    }
+    carregarResponsavel();
+    return () => {
+      cancelled = true;
+    };
+  }, [aluno, resourceBySlug]);
 
   async function handleCancelarProposta() {
     const propostasResource = resourceBySlug.get("propostas");
@@ -217,6 +266,33 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
 
   return (
     <div>
+      {/* Cabeçalho de identificação (layout inspirado na aba "Requerimento 2026" do
+       * Excel de referência, 2026-09-13): sempre visível, tanto na simulação quanto
+       * depois de confirmada -- só os campos que o documento real mostra (Nome do
+       * Responsável Financeiro, Nome do Aluno, Sexo, Data de Nascimento, Série). */}
+      <div className="bg-brand-navy text-white rounded-lg px-6 py-5 mb-6 flex items-center gap-5">
+        <img
+          src={logoNavegantes}
+          alt="Sas Navegantes"
+          className="h-16 w-16 rounded-full bg-white/95 p-2 shrink-0 object-contain"
+        />
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-amber">
+            Proposta Financeira{anoProposta ? ` ${anoProposta}` : ""}
+          </p>
+          <h2 className="text-lg font-semibold leading-tight truncate">{aluno ? String(aluno.NOME) : "—"}</h2>
+          <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-0.5 text-xs text-white/80">
+            <p><span className="text-white/50">Série:</span> {serie ? String(serie.NOME) : "—"}</p>
+            <p><span className="text-white/50">Sexo:</span> {aluno?.GENERO ? String(aluno.GENERO) : "—"}</p>
+            <p>
+              <span className="text-white/50">Nascimento:</span>{" "}
+              {aluno?.DATA_NASCIMENTO ? fmtData(String(aluno.DATA_NASCIMENTO)) : "—"}
+            </p>
+            <p><span className="text-white/50">Responsável:</span> {responsavelNome ?? "—"}</p>
+          </div>
+        </div>
+      </div>
+
       {toast && (
         <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">{toast}</div>
       )}
