@@ -390,6 +390,18 @@ export const COMERCIAL: FileDef = {
         { name: "STATUS", type: "enum", enumValues: ["Criada", "Aprovada", "Recusada", "Cancelada", "Aceita"], required: true },
         { name: "VALOR_TOTAL_MES", type: "number" },
         { name: "PERCENTUAL_DESCONTO", type: "number" },
+        // Entrada (Seção 22-bis, confirmada com o usuário em 2026-09-13): parcela
+        // sempre cobrada, valor = TabelaPrecos.MENSALIDADE da Série (sem rateio por
+        // dia/mês, sem multiplicador de forma de pagamento), com desconto próprio
+        // e independente do PERCENTUAL_DESCONTO da mensalidade -- validado 0-25%
+        // (margem real usada pela escola), não 0-100% como o outro.
+        { name: "PERCENTUAL_DESCONTO_ENTRADA", type: "number" },
+        { name: "DATA_PAGAMENTO_ENTRADA", type: "date" },
+        // M.D. de Inglês (confirmado com o usuário em 2026-09-13, evidência na
+        // planilha "Requerimento 2026": formas de pagamento do M.D. de Inglês só
+        // vão até "4 vezes"): quantidade de parcelas (1-4) escolhida para dividir
+        // o valor fixo total de MATERIAL_DIDATICO_INGLES -- ver propostaEngine.ts.
+        { name: "QUANTIDADE_PARCELAS_MATERIAL_INGLES", type: "number" },
       ],
     },
     {

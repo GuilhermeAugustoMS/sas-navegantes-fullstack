@@ -84,6 +84,41 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         errors.push({ field: "PERCENTUAL_DESCONTO", problem: "Deve ser um número de 0 a 100." });
       }
 
+      // Entrada (Seção 22-bis): desconto próprio, limitado a 25% (margem real
+      // usada pela escola -- diferente do desconto de mensalidade, até 100%).
+      const percentualDescontoEntradaRaw = body.PERCENTUAL_DESCONTO_ENTRADA;
+      const percentualDescontoEntrada =
+        percentualDescontoEntradaRaw === undefined || percentualDescontoEntradaRaw === null || percentualDescontoEntradaRaw === ""
+          ? 0
+          : Number(percentualDescontoEntradaRaw);
+      if (Number.isNaN(percentualDescontoEntrada) || percentualDescontoEntrada < 0 || percentualDescontoEntrada > 25) {
+        errors.push({ field: "PERCENTUAL_DESCONTO_ENTRADA", problem: "Deve ser um número de 0 a 25." });
+      }
+
+      const dataPagamentoEntradaRaw = body.DATA_PAGAMENTO_ENTRADA;
+      const dataPagamentoEntrada = dataPagamentoEntradaRaw ? new Date(dataPagamentoEntradaRaw) : null;
+      if (!dataPagamentoEntradaRaw || !dataPagamentoEntrada || Number.isNaN(dataPagamentoEntrada.getTime())) {
+        errors.push({ field: "DATA_PAGAMENTO_ENTRADA", problem: "Deve ser uma data válida." });
+      }
+
+      // M.D. de Inglês (Seção 22-bis, confirmada com o usuário em 2026-09-13):
+      // valor fixo total dividido em até 4 parcelas iguais -- quantidade
+      // escolhida pelo usuário, 1 a 4; default 4 se não informado.
+      const quantidadeParcelasMaterialInglesRaw = body.QUANTIDADE_PARCELAS_MATERIAL_INGLES;
+      const quantidadeParcelasMaterialIngles =
+        quantidadeParcelasMaterialInglesRaw === undefined ||
+        quantidadeParcelasMaterialInglesRaw === null ||
+        quantidadeParcelasMaterialInglesRaw === ""
+          ? 4
+          : Number(quantidadeParcelasMaterialInglesRaw);
+      if (
+        !Number.isInteger(quantidadeParcelasMaterialIngles) ||
+        quantidadeParcelasMaterialIngles < 1 ||
+        quantidadeParcelasMaterialIngles > 4
+      ) {
+        errors.push({ field: "QUANTIDADE_PARCELAS_MATERIAL_INGLES", problem: "Deve ser um número inteiro de 1 a 4." });
+      }
+
       let anoReferencia: number | undefined;
       if (serie) {
         const anoLetivo = await repo.findById(CADASTROS, "AnosLetivos", String(serie.ID_ANO_LETIVO));
@@ -122,6 +157,8 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         necessidadeAlimentacao: Boolean(body.NECESSIDADE_ALIMENTACAO),
         extrasContratados,
         percentualDesconto,
+        percentualDescontoEntrada,
+        quantidadeParcelasMaterialIngles,
       });
 
       if (preview) {
@@ -157,7 +194,13 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         COMERCIAL,
         "Propostas",
         propostaId,
-        { VALOR_TOTAL_MES: parcelas.at(-1)?.valorTotal ?? 0, PERCENTUAL_DESCONTO: percentualDesconto },
+        {
+          VALOR_TOTAL_MES: parcelas.at(-1)?.valorTotal ?? 0,
+          PERCENTUAL_DESCONTO: percentualDesconto,
+          PERCENTUAL_DESCONTO_ENTRADA: percentualDescontoEntrada,
+          DATA_PAGAMENTO_ENTRADA: dataPagamentoEntrada,
+          QUANTIDADE_PARCELAS_MATERIAL_INGLES: quantidadeParcelasMaterialIngles,
+        },
         { usuario: req.usuario, motivo: "Gerador de Proposta: parcelas calculadas" },
       );
 

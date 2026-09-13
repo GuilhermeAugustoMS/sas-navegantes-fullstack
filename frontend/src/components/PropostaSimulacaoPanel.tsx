@@ -13,6 +13,10 @@ function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function fmtData(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+}
+
 interface Props {
   propostaId: string;
   formasPagamento: RecordRow[];
@@ -37,6 +41,9 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
 
   const [statusProposta, setStatusProposta] = useState<string | null>(null);
   const [descontoPersistido, setDescontoPersistido] = useState<number | null>(null);
+  const [descontoEntradaPersistido, setDescontoEntradaPersistido] = useState<number | null>(null);
+  const [dataPagamentoEntradaPersistida, setDataPagamentoEntradaPersistida] = useState<string | null>(null);
+  const [qtdParcelasMaterialInglesPersistida, setQtdParcelasMaterialInglesPersistida] = useState<number | null>(null);
   const [descontoAberto, setDescontoAberto] = useState(false);
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
   const [cancelando, setCancelando] = useState(false);
@@ -49,6 +56,9 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
   const [contratouSemiIntegral, setContratouSemiIntegral] = useState(false);
   const [contratouEstendido, setContratouEstendido] = useState(false);
   const [percentualDesconto, setPercentualDesconto] = useState(0);
+  const [dataPagamentoEntrada, setDataPagamentoEntrada] = useState("");
+  const [percentualDescontoEntrada, setPercentualDescontoEntrada] = useState(0);
+  const [quantidadeParcelasMaterialIngles, setQuantidadeParcelasMaterialIngles] = useState(4);
 
   const [preview, setPreview] = useState<{ parcelas: ParcelaProposta[]; valorTotalMes: number } | null>(null);
   const [simulando, setSimulando] = useState(false);
@@ -93,9 +103,17 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       const rec = await api.get(propostasResource, propostaId);
       setStatusProposta(String(rec.STATUS ?? ""));
       setDescontoPersistido(typeof rec.PERCENTUAL_DESCONTO === "number" ? rec.PERCENTUAL_DESCONTO : null);
+      setDescontoEntradaPersistido(typeof rec.PERCENTUAL_DESCONTO_ENTRADA === "number" ? rec.PERCENTUAL_DESCONTO_ENTRADA : null);
+      setDataPagamentoEntradaPersistida(typeof rec.DATA_PAGAMENTO_ENTRADA === "string" ? rec.DATA_PAGAMENTO_ENTRADA : null);
+      setQtdParcelasMaterialInglesPersistida(
+        typeof rec.QUANTIDADE_PARCELAS_MATERIAL_INGLES === "number" ? rec.QUANTIDADE_PARCELAS_MATERIAL_INGLES : null,
+      );
     } catch {
       setStatusProposta(null);
       setDescontoPersistido(null);
+      setDescontoEntradaPersistido(null);
+      setDataPagamentoEntradaPersistida(null);
+      setQtdParcelasMaterialInglesPersistida(null);
     }
   }
 
@@ -129,6 +147,9 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       CONTRATOU_SEMI_INTEGRAL: contratouSemiIntegral,
       CONTRATOU_ESTENDIDO: contratouEstendido,
       PERCENTUAL_DESCONTO: percentualDesconto,
+      DATA_PAGAMENTO_ENTRADA: dataPagamentoEntrada,
+      PERCENTUAL_DESCONTO_ENTRADA: percentualDescontoEntrada,
+      QUANTIDADE_PARCELAS_MATERIAL_INGLES: quantidadeParcelasMaterialIngles,
     };
   }
 
@@ -167,7 +188,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [percentualDesconto]);
+  }, [percentualDesconto, percentualDescontoEntrada, quantidadeParcelasMaterialIngles]);
 
   async function handleConfirmar() {
     if (!propostaId || !idFormaPagamento) return;
@@ -179,6 +200,9 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       setPreview(res);
       setParcelasExistentes(res.parcelas);
       setDescontoPersistido(percentualDesconto);
+      setDescontoEntradaPersistido(percentualDescontoEntrada);
+      setDataPagamentoEntradaPersistida(dataPagamentoEntrada);
+      setQtdParcelasMaterialInglesPersistida(quantidadeParcelasMaterialIngles);
       setToast("Proposta gerada e parcelas gravadas com sucesso (histórico congelado).");
       onGerado?.(res);
     } catch (err) {
@@ -189,7 +213,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
   }
 
   const jaGerada = (parcelasExistentes?.length ?? 0) > 0;
-  const podeSimular = Boolean(propostaId && idFormaPagamento) && !jaGerada;
+  const podeSimular = Boolean(propostaId && idFormaPagamento && dataPagamentoEntrada) && !jaGerada;
 
   return (
     <div>
@@ -240,7 +264,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
 
       {!jaGerada && (
         <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Forma de Pagamento</label>
               <select
@@ -281,6 +305,16 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
                   className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Data de pagamento da Entrada</label>
+              <input
+                type="date"
+                value={dataPagamentoEntrada}
+                onChange={(e) => setDataPagamentoEntrada(e.target.value)}
+                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+              />
             </div>
           </div>
 
@@ -357,17 +391,43 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
                 <span className="h-1 w-1 rounded-full bg-current" />
               </button>
               {descontoAberto && (
-                <div className="mt-2 flex items-center gap-2">
-                  <label className="text-xs font-medium text-slate-600">Desconto (%) sobre Mensalidade</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.01"
-                    value={percentualDesconto}
-                    onChange={(e) => setPercentualDesconto(Number(e.target.value))}
-                    className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
-                  />
+                <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-600">Desconto (%) sobre Mensalidade</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={percentualDesconto}
+                      onChange={(e) => setPercentualDesconto(Number(e.target.value))}
+                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-600">Desconto (%) sobre Entrada</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={25}
+                      step="0.01"
+                      value={percentualDescontoEntrada}
+                      onChange={(e) => setPercentualDescontoEntrada(Number(e.target.value))}
+                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-600">Parcelas do Material de Inglês</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={4}
+                      step={1}
+                      value={quantidadeParcelasMaterialIngles}
+                      onChange={(e) => setQuantidadeParcelasMaterialIngles(Number(e.target.value))}
+                      className="w-16 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                    />
+                  </div>
                   {simulando && <span className="text-xs text-slate-400">recalculando...</span>}
                 </div>
               )}
@@ -375,7 +435,18 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
           )}
 
           {jaGerada && descontoPersistido !== null && descontoPersistido > 0 && (
-            <p className="text-xs text-slate-500 mb-4">Desconto aplicado: {descontoPersistido}%</p>
+            <p className="text-xs text-slate-500 mb-1">Desconto aplicado: {descontoPersistido}%</p>
+          )}
+          {jaGerada && descontoEntradaPersistido !== null && descontoEntradaPersistido > 0 && (
+            <p className="text-xs text-slate-500 mb-1">Desconto na Entrada: {descontoEntradaPersistido}%</p>
+          )}
+          {jaGerada && dataPagamentoEntradaPersistida && (
+            <p className="text-xs text-slate-500 mb-1">Data de pagamento da Entrada: {fmtData(dataPagamentoEntradaPersistida)}</p>
+          )}
+          {jaGerada && qtdParcelasMaterialInglesPersistida !== null && (
+            <p className="text-xs text-slate-500 mb-4">
+              Parcelas do Material de Inglês: {qtdParcelasMaterialInglesPersistida}x
+            </p>
           )}
 
           <div className="overflow-x-auto">
@@ -395,21 +466,43 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
                 </tr>
               </thead>
               <tbody>
-                {(jaGerada ? parcelasExistentes! : preview!.parcelas).map((p) => (
-                  <tr key={p.numeroParcela} className="border-b border-slate-100">
-                    <td className="py-1 pr-3">{p.numeroParcela}</td>
-                    <td className="py-1 pr-3">{MESES[p.mesReferencia - 1]}/{p.anoReferencia}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMensalidade)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMaterialDidatico)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMaterialDidaticoIngles)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorAlimentacao)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorIntegral)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorSemiIntegral)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorEstendido)}</td>
-                    <td className="py-1 pr-3 text-right font-semibold">{fmtMoeda(p.valorTotal)}</td>
-                  </tr>
-                ))}
+                {(jaGerada ? parcelasExistentes! : preview!.parcelas).map((p) => {
+                  const ehEntrada = p.numeroParcela === 1;
+                  return (
+                    <tr key={p.numeroParcela} className={`border-b border-slate-100 ${ehEntrada ? "bg-brand-amber/10 font-medium" : ""}`}>
+                      <td className="py-1 pr-3">{p.numeroParcela}ª</td>
+                      <td className="py-1 pr-3">{ehEntrada ? "Entrada" : `${MESES[p.mesReferencia - 1]}/${p.anoReferencia}`}</td>
+                      <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMensalidade)}</td>
+                      <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMaterialDidatico)}</td>
+                      <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMaterialDidaticoIngles)}</td>
+                      <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorAlimentacao)}</td>
+                      <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorIntegral)}</td>
+                      <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorSemiIntegral)}</td>
+                      <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorEstendido)}</td>
+                      <td className="py-1 pr-3 text-right font-semibold">{fmtMoeda(p.valorTotal)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
+              <tfoot>
+                {(() => {
+                  const todas = jaGerada ? parcelasExistentes! : preview!.parcelas;
+                  const somar = (campo: keyof ParcelaProposta) => todas.reduce((acc, p) => acc + (p[campo] as number), 0);
+                  return (
+                    <tr className="border-t-2 border-slate-300 font-semibold text-slate-800">
+                      <td className="py-1.5 pr-3" colSpan={2}>Total</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorMensalidade"))}</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorMaterialDidatico"))}</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorMaterialDidaticoIngles"))}</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorAlimentacao"))}</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorIntegral"))}</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorSemiIntegral"))}</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorEstendido"))}</td>
+                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorTotal"))}</td>
+                    </tr>
+                  );
+                })()}
+              </tfoot>
             </table>
           </div>
         </div>

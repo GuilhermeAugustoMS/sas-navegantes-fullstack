@@ -19,16 +19,18 @@ afterAll(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
+// DATA_PAGAMENTO_ENTRADA é obrigatória desde 2026-09-13 (Entrada sempre
+// cobrada -- ver propostaEngine.ts) em toda chamada de /parcelas.
+const DATA_PAGAMENTO_ENTRADA = "2027-01-05";
+
 async function montarFixtures() {
   const anoLetivo = await request(app).post("/api/cadastros/anos-letivos").send({ ANO: 2027, ATIVO: true });
   const serie = await request(app)
     .post("/api/cadastros/series")
     .send({ NOME: "1º Ano A", ID_ANO_LETIVO: anoLetivo.body.ID_ANO_LETIVO, ATIVO: true });
-  const unidade = await request(app).post("/api/cadastros/unidades").send({ NOME: "Carajás", ATIVO: true });
   const aluno = await request(app).post("/api/cadastros/alunos").send({
     NOME: "Laura",
     DATA_NASCIMENTO: "2019-01-01",
-    ID_UNIDADE: unidade.body.ID_UNIDADE,
     DATA_CADASTRO: "2027-01-10",
     ATIVO: true,
   });
@@ -81,18 +83,21 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
         MES_ENTRADA: 3,
         DIA_ENTRADA: 1,
         NECESSIDADE_ALIMENTACAO: true,
+        DATA_PAGAMENTO_ENTRADA,
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.parcelas).toHaveLength(10); // março a dezembro
-    expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600 + 290 + 40 + 350, 2);
+    expect(res.body.parcelas).toHaveLength(11); // Entrada + março a dezembro
+    expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600, 2); // Entrada: só a mensalidade cheia
+    // Material de Inglês: 40 ÷ 4 parcelas padrão = 10 (não os 40 inteiros).
+    expect(res.body.parcelas[1].valorTotal).toBeCloseTo(1600 + 290 + 10 + 350, 2); // 1º mês normal
 
     const check = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`);
     expect(check.body).toEqual([]); // preview não grava nada
   });
 
-  it("gera e persiste as parcelas, atualizando VALOR_TOTAL_MES da Proposta", async () => {
-    // Timeout maior: grava 12 parcelas em sequência (I/O real de Excel via
+  it("gera e persiste as parcelas (Entrada + mensalidades), atualizando VALOR_TOTAL_MES da Proposta", async () => {
+    // Timeout maior: grava 13 parcelas em sequência (I/O real de Excel via
     // proper-lockfile) -- sob carga (suíte completa rodando em paralelo),
     // isso passa de 5s por engano nesta máquina, sem ser um bug de lógica.
     const { proposta, formaPagamento } = await montarFixtures();
@@ -102,11 +107,14 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       MES_ENTRADA: 1,
       DIA_ENTRADA: 1,
       NECESSIDADE_ALIMENTACAO: true,
+      DATA_PAGAMENTO_ENTRADA,
     });
 
     expect(res.status).toBe(201);
-    expect(res.body.parcelas).toHaveLength(12);
-    expect(res.body.valorTotalMes).toBeCloseTo(1600 + 290 + 40 + 350, 2);
+    expect(res.body.parcelas).toHaveLength(13); // Entrada + 12 meses
+    // VALOR_TOTAL_MES reflete o último mês (dezembro): o M.D. de Inglês (10 x 4
+    // parcelas padrão, cobrado só nos 4 primeiros meses) já foi quitado nele.
+    expect(res.body.valorTotalMes).toBeCloseTo(1600 + 290 + 0 + 350, 2);
     // Formato camelCase igual ao da resposta de preview (ParcelaProposta do frontend) --
     // regressão: já existiu um bug em que esta resposta vinha em SNAKE_CASE cru do Excel,
     // quebrando a tela ao tentar formatar valorTotal (undefined) como moeda.
@@ -114,16 +122,22 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       numeroParcela: 1,
       mesReferencia: 1,
       anoReferencia: 2027,
+      valorTotal: 1600, // Entrada: valor cheio da mensalidade, sem material/alimentação
+    });
+    expect(res.body.parcelas[1]).toMatchObject({
+      numeroParcela: 2,
+      mesReferencia: 1,
+      anoReferencia: 2027,
       valorTotal: expect.any(Number),
     });
-    expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600 + 290 + 40 + 350, 2);
+    expect(res.body.parcelas[1].valorTotal).toBeCloseTo(1600 + 290 + 10 + 350, 2);
 
     const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
-    expect(propostaAtualizada.body.VALOR_TOTAL_MES).toBeCloseTo(1600 + 290 + 40 + 350, 2);
+    expect(propostaAtualizada.body.VALOR_TOTAL_MES).toBeCloseTo(1600 + 290 + 0 + 350, 2);
 
     const listaParcelas = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`);
-    expect(listaParcelas.body).toHaveLength(12);
-    expect(listaParcelas.body[0]).toMatchObject({ numeroParcela: 1, valorTotal: expect.any(Number) });
+    expect(listaParcelas.body).toHaveLength(13);
+    expect(listaParcelas.body[0]).toMatchObject({ numeroParcela: 1, valorTotal: 1600 });
   }, 15000);
 
   it("recusa gerar parcelas de novo para a mesma proposta (histórico congelado)", async () => {
@@ -133,6 +147,7 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       MES_ENTRADA: 1,
       DIA_ENTRADA: 1,
       NECESSIDADE_ALIMENTACAO: true,
+      DATA_PAGAMENTO_ENTRADA,
     };
 
     const primeira = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send(body);
@@ -143,7 +158,7 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
     expect(segunda.body.error).toBe("PARCELAS_JA_GERADAS");
   });
 
-  it("aplica e persiste PERCENTUAL_DESCONTO ao confirmar a proposta", async () => {
+  it("aplica e persiste PERCENTUAL_DESCONTO ao confirmar a proposta (só na mensalidade, não na Entrada)", async () => {
     const { proposta, formaPagamento } = await montarFixtures();
 
     const res = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
@@ -151,11 +166,13 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       MES_ENTRADA: 1,
       DIA_ENTRADA: 1,
       NECESSIDADE_ALIMENTACAO: false,
+      DATA_PAGAMENTO_ENTRADA,
       PERCENTUAL_DESCONTO: 10,
     });
 
     expect(res.status).toBe(201);
-    expect(res.body.parcelas[0].valorMensalidade).toBeCloseTo(1600 * 0.9, 2);
+    expect(res.body.parcelas[0].valorTotal).toBe(1600); // Entrada sem desconto de mensalidade
+    expect(res.body.parcelas[1].valorMensalidade).toBeCloseTo(1600 * 0.9, 2);
 
     const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
     expect(propostaAtualizada.body.PERCENTUAL_DESCONTO).toBe(10);
@@ -171,11 +188,12 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
         MES_ENTRADA: 1,
         DIA_ENTRADA: 1,
         NECESSIDADE_ALIMENTACAO: false,
+        DATA_PAGAMENTO_ENTRADA,
         PERCENTUAL_DESCONTO: 10,
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.parcelas[0].valorMensalidade).toBeCloseTo(1600 * 0.9, 2);
+    expect(res.body.parcelas[1].valorMensalidade).toBeCloseTo(1600 * 0.9, 2);
 
     const propostaInalterada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
     expect(propostaInalterada.body.PERCENTUAL_DESCONTO ?? null).toBeFalsy();
@@ -189,10 +207,11 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       MES_ENTRADA: 1,
       DIA_ENTRADA: 1,
       NECESSIDADE_ALIMENTACAO: true,
+      DATA_PAGAMENTO_ENTRADA,
     });
 
     expect(res.status).toBe(201);
-    expect(res.body.parcelas[0].valorMensalidade).toBe(1600);
+    expect(res.body.parcelas[1].valorMensalidade).toBe(1600);
 
     const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
     expect(propostaAtualizada.body.PERCENTUAL_DESCONTO).toBe(0);
@@ -206,6 +225,7 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       MES_ENTRADA: 1,
       DIA_ENTRADA: 1,
       NECESSIDADE_ALIMENTACAO: true,
+      DATA_PAGAMENTO_ENTRADA,
       PERCENTUAL_DESCONTO: 150,
     });
     expect(acima.status).toBe(422);
@@ -217,6 +237,7 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       MES_ENTRADA: 1,
       DIA_ENTRADA: 1,
       NECESSIDADE_ALIMENTACAO: true,
+      DATA_PAGAMENTO_ENTRADA,
       PERCENTUAL_DESCONTO: -5,
     });
     expect(abaixo.status).toBe(422);
@@ -243,10 +264,199 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       MES_ENTRADA: 1,
       DIA_ENTRADA: 1,
       NECESSIDADE_ALIMENTACAO: true,
+      DATA_PAGAMENTO_ENTRADA,
     });
 
     expect(res.status).toBe(422);
     expect(res.body.error).toBe("REGRA_DE_NEGOCIO");
     expect(res.body.detalhes.length).toBeGreaterThan(0);
+  });
+
+  describe("Entrada (parcela 1ª, sempre cobrada, desconto e data próprios)", () => {
+    it("aplica e persiste PERCENTUAL_DESCONTO_ENTRADA e DATA_PAGAMENTO_ENTRADA ao confirmar", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const res = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: false,
+        DATA_PAGAMENTO_ENTRADA,
+        PERCENTUAL_DESCONTO_ENTRADA: 25,
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600 * 0.75, 2);
+
+      const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+      expect(propostaAtualizada.body.PERCENTUAL_DESCONTO_ENTRADA).toBe(25);
+      expect(new Date(propostaAtualizada.body.DATA_PAGAMENTO_ENTRADA).toISOString().slice(0, 10)).toBe(DATA_PAGAMENTO_ENTRADA);
+    });
+
+    it("rejeita PERCENTUAL_DESCONTO_ENTRADA fora da faixa 0-25 (regra de negócio, 422)", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const acima = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: true,
+        DATA_PAGAMENTO_ENTRADA,
+        PERCENTUAL_DESCONTO_ENTRADA: 30,
+      });
+      expect(acima.status).toBe(422);
+      expect(acima.body.error).toBe("REGRA_DE_NEGOCIO");
+      expect(acima.body.detalhes.some((d: { field: string }) => d.field === "PERCENTUAL_DESCONTO_ENTRADA")).toBe(true);
+
+      const abaixo = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: true,
+        DATA_PAGAMENTO_ENTRADA,
+        PERCENTUAL_DESCONTO_ENTRADA: -1,
+      });
+      expect(abaixo.status).toBe(422);
+      expect(abaixo.body.error).toBe("REGRA_DE_NEGOCIO");
+      expect(abaixo.body.detalhes.some((d: { field: string }) => d.field === "PERCENTUAL_DESCONTO_ENTRADA")).toBe(true);
+    });
+
+    it("rejeita DATA_PAGAMENTO_ENTRADA ausente ou inválida (regra de negócio, 422)", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const ausente = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: true,
+      });
+      expect(ausente.status).toBe(422);
+      expect(ausente.body.error).toBe("REGRA_DE_NEGOCIO");
+      expect(ausente.body.detalhes.some((d: { field: string }) => d.field === "DATA_PAGAMENTO_ENTRADA")).toBe(true);
+
+      const invalida = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: true,
+        DATA_PAGAMENTO_ENTRADA: "não é uma data",
+      });
+      expect(invalida.status).toBe(422);
+      expect(invalida.body.error).toBe("REGRA_DE_NEGOCIO");
+      expect(invalida.body.detalhes.some((d: { field: string }) => d.field === "DATA_PAGAMENTO_ENTRADA")).toBe(true);
+    });
+
+    it("não persiste PERCENTUAL_DESCONTO_ENTRADA em modo preview", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const res = await request(app)
+        .post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas?preview=true`)
+        .send({
+          ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+          MES_ENTRADA: 1,
+          DIA_ENTRADA: 1,
+          NECESSIDADE_ALIMENTACAO: false,
+          DATA_PAGAMENTO_ENTRADA,
+          PERCENTUAL_DESCONTO_ENTRADA: 25,
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600 * 0.75, 2);
+
+      const propostaInalterada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+      expect(propostaInalterada.body.PERCENTUAL_DESCONTO_ENTRADA ?? null).toBeFalsy();
+      expect(propostaInalterada.body.DATA_PAGAMENTO_ENTRADA ?? null).toBeFalsy();
+    });
+  });
+
+  describe("Material Didático de Inglês (parcelas fixas, quantidade escolhida)", () => {
+    it("aplica e persiste QUANTIDADE_PARCELAS_MATERIAL_INGLES ao confirmar", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const res = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: false,
+        DATA_PAGAMENTO_ENTRADA,
+        QUANTIDADE_PARCELAS_MATERIAL_INGLES: 2,
+      });
+
+      expect(res.status).toBe(201);
+      // 40 ÷ 2 parcelas = 20 (não os 10 do padrão de 4).
+      expect(res.body.parcelas[1].valorMaterialDidaticoIngles).toBeCloseTo(20, 2);
+      expect(res.body.parcelas[2].valorMaterialDidaticoIngles).toBeCloseTo(20, 2);
+      expect(res.body.parcelas[3].valorMaterialDidaticoIngles).toBe(0);
+
+      const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+      expect(propostaAtualizada.body.QUANTIDADE_PARCELAS_MATERIAL_INGLES).toBe(2);
+    });
+
+    it("assume 4 parcelas por padrão quando QUANTIDADE_PARCELAS_MATERIAL_INGLES não é enviado", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const res = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: false,
+        DATA_PAGAMENTO_ENTRADA,
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.parcelas[1].valorMaterialDidaticoIngles).toBeCloseTo(10, 2);
+
+      const propostaAtualizada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+      expect(propostaAtualizada.body.QUANTIDADE_PARCELAS_MATERIAL_INGLES).toBe(4);
+    });
+
+    it("rejeita QUANTIDADE_PARCELAS_MATERIAL_INGLES fora da faixa 1-4 (regra de negócio, 422)", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const acima = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: true,
+        DATA_PAGAMENTO_ENTRADA,
+        QUANTIDADE_PARCELAS_MATERIAL_INGLES: 5,
+      });
+      expect(acima.status).toBe(422);
+      expect(acima.body.error).toBe("REGRA_DE_NEGOCIO");
+      expect(acima.body.detalhes.some((d: { field: string }) => d.field === "QUANTIDADE_PARCELAS_MATERIAL_INGLES")).toBe(true);
+
+      const abaixo = await request(app).post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`).send({
+        ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+        MES_ENTRADA: 1,
+        DIA_ENTRADA: 1,
+        NECESSIDADE_ALIMENTACAO: true,
+        DATA_PAGAMENTO_ENTRADA,
+        QUANTIDADE_PARCELAS_MATERIAL_INGLES: 0,
+      });
+      expect(abaixo.status).toBe(422);
+      expect(abaixo.body.error).toBe("REGRA_DE_NEGOCIO");
+      expect(abaixo.body.detalhes.some((d: { field: string }) => d.field === "QUANTIDADE_PARCELAS_MATERIAL_INGLES")).toBe(true);
+    });
+
+    it("não persiste QUANTIDADE_PARCELAS_MATERIAL_INGLES em modo preview", async () => {
+      const { proposta, formaPagamento } = await montarFixtures();
+
+      const res = await request(app)
+        .post(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas?preview=true`)
+        .send({
+          ID_FORMA_PAGAMENTO: formaPagamento.body.ID_FORMA_PAGAMENTO,
+          MES_ENTRADA: 1,
+          DIA_ENTRADA: 1,
+          NECESSIDADE_ALIMENTACAO: false,
+          DATA_PAGAMENTO_ENTRADA,
+          QUANTIDADE_PARCELAS_MATERIAL_INGLES: 2,
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.parcelas[1].valorMaterialDidaticoIngles).toBeCloseTo(20, 2);
+
+      const propostaInalterada = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}`);
+      expect(propostaInalterada.body.QUANTIDADE_PARCELAS_MATERIAL_INGLES ?? null).toBeFalsy();
+    });
   });
 });

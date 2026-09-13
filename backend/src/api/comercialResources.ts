@@ -41,7 +41,12 @@ export const COMERCIAL_RESOURCES: ResourceDef[] = [
     foreignKeys: [{ field: "ID_NEGOCIACAO", targetSheet: "Negociacoes" }],
     // Editável só pelo painel de simulação (PropostaSimulacaoPanel.tsx) --
     // não deve aparecer na tela de CRUD genérico de Propostas.
-    hiddenColumns: ["PERCENTUAL_DESCONTO"],
+    hiddenColumns: [
+      "PERCENTUAL_DESCONTO",
+      "PERCENTUAL_DESCONTO_ENTRADA",
+      "DATA_PAGAMENTO_ENTRADA",
+      "QUANTIDADE_PARCELAS_MATERIAL_INGLES",
+    ],
   },
   {
     slug: "itens-proposta",

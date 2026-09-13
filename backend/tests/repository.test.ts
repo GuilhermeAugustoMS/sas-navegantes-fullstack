@@ -11,7 +11,7 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sas-data-"));
 process.env.SAS_DATA_ROOT = tmpRoot;
 
 const { ExcelRepository, ValidationFailedError, RecordNotFoundError } = await import("../src/excel/ExcelRepository.js");
-const { CADASTROS, AUDITORIA, FINANCEIRO } = await import("../src/schema/files.js");
+const { CADASTROS, AUDITORIA, FINANCEIRO, COMERCIAL } = await import("../src/schema/files.js");
 
 const repo = new ExcelRepository();
 const ctx = { usuario: "teste-automatizado" };
@@ -155,5 +155,98 @@ describe("ExcelRepository.ensureFile - migração de schema em arquivo já exist
     await repo.ensureFile(FINANCEIRO);
     const receitasDepois = await repo.readAll(FINANCEIRO, "Receitas");
     expect(receitasDepois).toHaveLength(1);
+  });
+
+  // Regressão de um bug real (2026-09-13): PERCENTUAL_DESCONTO_ENTRADA e
+  // DATA_PAGAMENTO_ENTRADA foram adicionados à aba Propostas, que já existia
+  // com dados reais. ensureFile só migrava ABAS novas, não COLUNAS novas numa
+  // aba já existente -- a coluna nova nunca aparecia no cabeçalho físico, e
+  // por isso sumia na leitura (sheetToRecords resolve por nome do cabeçalho).
+  // Pior: writeRecordAtRow/appendRecord escreviam por POSIÇÃO do schema, então
+  // se algum registro antigo tivesse uma linha "mais larga" que o cabeçalho
+  // (ex.: escrita por uma versão anterior e buggy do código), a nova coluna
+  // podia entrar deslocada, deixando células órfãs sem nome no meio do
+  // cabeçalho. Este teste cobre os dois ângulos: a coluna nova é adicionada
+  // corretamente ao final do cabeçalho FÍSICO (não da linha de dado mais
+  // larga), e leitura/escrita continuam resolvendo por nome, não por posição.
+  it("acrescenta colunas novas do schema a uma aba já existente, resolvendo sempre por nome (não por posição)", async () => {
+    fs.rmSync(path.join(tmpRoot, COMERCIAL.fileName), { force: true });
+
+    const propostasDef = COMERCIAL.sheets.find((s) => s.name === "Propostas")!;
+    const colunasAntigas = propostasDef.columns.filter(
+      (c) =>
+        c.name !== "PERCENTUAL_DESCONTO_ENTRADA" &&
+        c.name !== "DATA_PAGAMENTO_ENTRADA" &&
+        c.name !== "QUANTIDADE_PARCELAS_MATERIAL_INGLES",
+    );
+
+    const wbAntigo = new ExcelJS.Workbook();
+    for (const sheet of COMERCIAL.sheets) {
+      const ws = wbAntigo.addWorksheet(sheet.name);
+      if (sheet.name === "Propostas") {
+        ws.addRow(colunasAntigas.map((c) => c.name)); // cabeçalho SEM as 2 colunas novas
+        ws.addRow(["PRO_000001", "NEG_000001", "2026-01-01", "Criada", 1000, 0]); // registro antigo normal
+        // Linha "mais larga" que o cabeçalho -- simula uma célula deixada por uma
+        // escrita antiga feita por POSIÇÃO (bug real corrigido em 2026-09-13).
+        // ensureFile não pode se guiar pela linha mais larga da aba
+        // (ws.columnCount), só pela extensão do próprio cabeçalho -- senão a
+        // coluna nova entra deslocada, com posições vazias sem nome no meio.
+        ws.addRow(["PRO_000002", "NEG_000001", "2026-02-01", "Criada", 2000, 0, "célula fora do cabeçalho"]);
+      } else {
+        ws.addRow(sheet.columns.map((c) => c.name));
+      }
+    }
+    await wbAntigo.xlsx.writeFile(path.join(tmpRoot, COMERCIAL.fileName));
+
+    await repo.ensureFile(COMERCIAL);
+
+    // O cabeçalho ganhou as 2 colunas novas logo em seguida às 6 antigas,
+    // contíguas -- não deslocadas por causa da linha mais larga (PRO_000002).
+    const wbDepois = new ExcelJS.Workbook();
+    await wbDepois.xlsx.readFile(path.join(tmpRoot, COMERCIAL.fileName));
+    const headerDepois = wbDepois.getWorksheet("Propostas")!.getRow(1).values as unknown[];
+    expect(headerDepois.slice(1)).toEqual([
+      "ID_PROPOSTA",
+      "ID_NEGOCIACAO",
+      "DATA_PROPOSTA",
+      "STATUS",
+      "VALOR_TOTAL_MES",
+      "PERCENTUAL_DESCONTO",
+      "PERCENTUAL_DESCONTO_ENTRADA",
+      "DATA_PAGAMENTO_ENTRADA",
+      "QUANTIDADE_PARCELAS_MATERIAL_INGLES",
+    ]);
+
+    const propostas = await repo.readAll(COMERCIAL, "Propostas");
+    expect(propostas).toHaveLength(2);
+
+    // Registro antigo "normal" continua legível pelas colunas antigas, e a
+    // coluna nova existe vazia (registro é anterior a ela).
+    const antigo = propostas.find((p) => p.ID_PROPOSTA === "PRO_000001")!;
+    expect(antigo.VALOR_TOTAL_MES).toBe(1000);
+    expect(antigo.PERCENTUAL_DESCONTO_ENTRADA ?? null).toBeFalsy();
+
+    // Um registro novo grava e relê corretamente pelas colunas novas.
+    const novo = await repo.insert(
+      COMERCIAL,
+      "Propostas",
+      {
+        ID_NEGOCIACAO: "NEG_000001",
+        DATA_PROPOSTA: "2027-01-01",
+        STATUS: "Criada",
+        PERCENTUAL_DESCONTO_ENTRADA: 25,
+        DATA_PAGAMENTO_ENTRADA: "2027-01-05",
+      },
+      ctx,
+    );
+    expect(novo.PERCENTUAL_DESCONTO_ENTRADA).toBe(25);
+
+    const relido = await repo.findById(COMERCIAL, "Propostas", novo.ID_PROPOSTA as string);
+    expect(relido?.PERCENTUAL_DESCONTO_ENTRADA).toBe(25);
+
+    // Idempotente: rodar de novo não duplica a coluna nem perde dado.
+    await repo.ensureFile(COMERCIAL);
+    const propostasDepois = await repo.readAll(COMERCIAL, "Propostas");
+    expect(propostasDepois).toHaveLength(3);
   });
 });

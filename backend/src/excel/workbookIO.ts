@@ -28,12 +28,24 @@ export async function readWorkbook(filePath: string): Promise<ExcelJS.Workbook> 
   return wb;
 }
 
-export function sheetToRecords(ws: ExcelJS.Worksheet, sheetDef: SheetDef): Record_[] {
-  const headerRow = ws.getRow(1);
+/**
+ * Nomes das colunas físicas da aba, indexados pela posição real da coluna
+ * (1-based) -- nunca pela ordem do schema. Colunas são sempre resolvidas por
+ * NOME, nunca por posição fixa: o schema pode ganhar colunas novas (Seção 59)
+ * depois que o arquivo físico já existia, e nesse caso a coluna nova só
+ * aparece no fim do cabeçalho físico (ver ExcelRepository.ensureFile), fora
+ * de ordem em relação ao schema.
+ */
+function nomesDasColunas(ws: ExcelJS.Worksheet): string[] {
   const headers: string[] = [];
-  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+  ws.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
     headers[colNumber] = String(cell.value ?? "").trim();
   });
+  return headers;
+}
+
+export function sheetToRecords(ws: ExcelJS.Worksheet, sheetDef: SheetDef): Record_[] {
+  const headers = nomesDasColunas(ws);
 
   const records: Record_[] = [];
   for (let r = 2; r <= ws.rowCount; r++) {
@@ -61,15 +73,24 @@ export function sheetToRecords(ws: ExcelJS.Worksheet, sheetDef: SheetDef): Recor
 }
 
 export function appendRecord(ws: ExcelJS.Worksheet, sheetDef: SheetDef, record: Record_): void {
-  const row = sheetDef.columns.map((c) => toCellValue(record[c.name]));
-  ws.addRow(row);
+  const headers = nomesDasColunas(ws);
+  const row = ws.getRow(ws.rowCount + 1);
+  for (const c of sheetDef.columns) {
+    const colIndex = headers.indexOf(c.name);
+    if (colIndex === -1) continue; // coluna do schema ainda não existe fisicamente
+    row.getCell(colIndex).value = toCellValue(record[c.name]);
+  }
+  row.commit();
 }
 
 export function writeRecordAtRow(ws: ExcelJS.Worksheet, sheetDef: SheetDef, rowNumber: number, record: Record_): void {
+  const headers = nomesDasColunas(ws);
   const row = ws.getRow(rowNumber);
-  sheetDef.columns.forEach((c, idx) => {
-    row.getCell(idx + 1).value = toCellValue(record[c.name]);
-  });
+  for (const c of sheetDef.columns) {
+    const colIndex = headers.indexOf(c.name);
+    if (colIndex === -1) continue;
+    row.getCell(colIndex).value = toCellValue(record[c.name]);
+  }
   row.commit();
 }
 

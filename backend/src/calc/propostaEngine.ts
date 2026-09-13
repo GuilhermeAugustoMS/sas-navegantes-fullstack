@@ -19,6 +19,29 @@
  * - Desconto percentual (opcional) incide só sobre a Mensalidade, igualmente
  *   em todas as parcelas (regra confirmada com o usuário ao adicionar o
  *   wizard "Fazer Proposta").
+ * - Entrada (confirmado com o usuário em 2026-09-13): sempre existe, é a
+ *   parcela "1ª" (as demais mensalidades passam a ser 2ª em diante, igual ao
+ *   layout real da escola -- ver "Requerimento 2026" do arquivo de
+ *   referência). Vale o valor cheio de MENSALIDADE da Série, SEM rateio por
+ *   dia/mês de entrada e SEM o multiplicador da forma de pagamento -- só com
+ *   seu próprio desconto (percentualDescontoEntrada), independente do
+ *   desconto da mensalidade. Não soma material didático, alimentação nem
+ *   extras (ficam zerados nessa parcela, igual ao documento real).
+ * - Material Didático de Inglês (confirmado com o usuário em 2026-09-13, com
+ *   evidência da planilha "Requerimento 2026" -- lá as formas de pagamento do
+ *   M.D. de Inglês só vão até "4 vezes", diferente da Mensalidade que vai até
+ *   12x): ao contrário do Material Didático comum (que continua cobrado todo
+ *   mês, com rateio, igual sempre foi), o M.D. de Inglês passa a ser um valor
+ *   FIXO total (MATERIAL_DIDATICO_INGLES da Tabela de Preços) dividido em até
+ *   4 parcelas IGUAIS (quantidadeParcelasMaterialIngles, escolhida pelo
+ *   usuário, 1 a 4), sem rateio por dia e sem multiplicador de forma de
+ *   pagamento -- e sem nenhum desconto (nem o da mensalidade, nem o da
+ *   entrada). Começa a ser cobrado a partir da 2ª parcela (1ª mensalidade,
+ *   nunca na Entrada) e some (fica R$0) depois de esgotadas as parcelas. Se o
+ *   aluno tiver menos meses letivos restantes do que a quantidade escolhida,
+ *   reduz automaticamente para o número de meses realmente disponíveis. A
+ *   última parcela absorve a diferença de arredondamento, para a soma bater
+ *   exatamente com o valor total da Tabela de Preços.
  */
 
 export interface PrecoSerie {
@@ -42,6 +65,8 @@ export interface GerarParcelasInput {
   necessidadeAlimentacao: boolean;
   extrasContratados: ProgramaExtraValor[]; // já filtrados para os que o aluno contratou
   percentualDesconto?: number; // 0-100, incide só sobre a Mensalidade; default 0
+  percentualDescontoEntrada?: number; // 0-25, incide só sobre a parcela de Entrada; default 0
+  quantidadeParcelasMaterialIngles?: number; // 1-4, quantas mensalidades recebem o M.D. de Inglês; default 4
 }
 
 export interface ParcelaCalculada {
@@ -84,6 +109,8 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
     necessidadeAlimentacao,
     extrasContratados,
     percentualDesconto,
+    percentualDescontoEntrada,
+    quantidadeParcelasMaterialIngles,
   } = input;
 
   if (mesEntrada < 1 || mesEntrada > 12) {
@@ -91,6 +118,19 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
   }
 
   const fatorDesconto = 1 - (percentualDesconto ?? 0) / 100;
+  const fatorDescontoEntrada = 1 - (percentualDescontoEntrada ?? 0) / 100;
+
+  // M.D. de Inglês: valor fixo total dividido em até 4 parcelas iguais,
+  // nunca mais que os meses letivos realmente disponíveis (mesEntrada..dez).
+  const mesesDisponiveis = 12 - mesEntrada + 1;
+  const qtdParcelasMaterialIngles = Math.min(
+    Math.max(1, Math.min(4, Math.round(quantidadeParcelasMaterialIngles ?? 4))),
+    mesesDisponiveis,
+  );
+  const valorParcelaMaterialInglesBase = round2(precoSerie.MATERIAL_DIDATICO_INGLES / qtdParcelasMaterialIngles);
+  const valorUltimaParcelaMaterialIngles = round2(
+    precoSerie.MATERIAL_DIDATICO_INGLES - valorParcelaMaterialInglesBase * (qtdParcelasMaterialIngles - 1),
+  );
 
   const extraPor = (nome: ProgramaExtraValor["nome"]) => extrasContratados.find((e) => e.nome === nome)?.valorMes ?? 0;
   const integralMes = extraPor("Integral");
@@ -98,13 +138,36 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
   const estendidoMes = extraPor("Estendido");
 
   const parcelas: ParcelaCalculada[] = [];
-  let numero = 1;
+
+  const valorEntrada = round2(precoSerie.MENSALIDADE * fatorDescontoEntrada);
+  parcelas.push({
+    numeroParcela: 1,
+    mesReferencia: mesEntrada,
+    anoReferencia: ano,
+    valorMensalidade: valorEntrada,
+    valorMaterialDidatico: 0,
+    valorMaterialDidaticoIngles: 0,
+    valorAlimentacao: 0,
+    valorIntegral: 0,
+    valorSemiIntegral: 0,
+    valorEstendido: 0,
+    valorTotal: valorEntrada,
+  });
+
+  let numero = 2;
+  let indiceMes = 0;
   for (let mes = mesEntrada; mes <= 12; mes++) {
     const fracao = fracaoDoMes(mes, mesEntrada, diaEntrada, ano);
 
     const mensalidade = round2(precoSerie.MENSALIDADE * fracao * mult * fatorDesconto);
     const material = round2(precoSerie.MATERIAL_DIDATICO * fracao * mult);
-    const materialIngles = round2(precoSerie.MATERIAL_DIDATICO_INGLES * fracao * mult);
+    const materialIngles =
+      indiceMes >= qtdParcelasMaterialIngles
+        ? 0
+        : indiceMes === qtdParcelasMaterialIngles - 1
+          ? valorUltimaParcelaMaterialIngles
+          : valorParcelaMaterialInglesBase;
+    indiceMes++;
     const alimentacao = necessidadeAlimentacao ? round2(precoSerie.ALIMENTACAO * fracao * mult) : 0;
     const integral = round2(integralMes * fracao * mult);
     const semiIntegral = round2(semiIntegralMes * fracao * mult);

@@ -59,4 +59,10 @@ export interface GerarParcelasInput {
   CONTRATOU_SEMI_INTEGRAL?: boolean;
   CONTRATOU_ESTENDIDO?: boolean;
   PERCENTUAL_DESCONTO?: number;
+  /** Data em que a Entrada (1ª parcela, sempre cobrada) será paga -- obrigatória. */
+  DATA_PAGAMENTO_ENTRADA: string;
+  /** Desconto (0-25%) só sobre a Entrada, independente de PERCENTUAL_DESCONTO. */
+  PERCENTUAL_DESCONTO_ENTRADA?: number;
+  /** Quantidade de parcelas (1-4) do Material Didático de Inglês; default 4. */
+  QUANTIDADE_PARCELAS_MATERIAL_INGLES?: number;
 }

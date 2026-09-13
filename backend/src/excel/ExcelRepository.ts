@@ -39,10 +39,17 @@ export interface RepoContext {
 export class ExcelRepository {
   /**
    * Cria o arquivo com todas as abas/cabeçalhos do FileDef, se ainda não existir.
-   * Se o arquivo já existir (caso comum: o schema ganhou uma aba nova depois que
-   * o .xlsx real já tinha sido criado), acrescenta só as abas que estiverem
-   * faltando -- nunca mexe nas abas/dados já existentes. Idempotente: rodar de
-   * novo depois que todas as abas já existem não faz nada.
+   * Se o arquivo já existir, acrescenta só o que estiver faltando -- nunca mexe
+   * nas abas/dados já existentes:
+   *  - abas novas do schema (caso comum: o schema ganhou uma aba nova depois
+   *    que o .xlsx real já tinha sido criado);
+   *  - colunas novas em abas que já existiam (ex.: PERCENTUAL_DESCONTO_ENTRADA
+   *    adicionado a Propostas em 2026-09-13) -- a coluna nova é acrescentada
+   *    ao final do cabeçalho físico (linhas já existentes ficam com a célula
+   *    vazia nessa coluna, igual a uma planilha comum). Por isso a leitura e a
+   *    escrita (sheetToRecords/appendRecord/writeRecordAtRow) sempre resolvem
+   *    coluna por NOME via o cabeçalho, nunca por posição fixa do schema.
+   * Idempotente: rodar de novo depois que tudo já existe não faz nada.
    */
   async ensureFile(fileDef: FileDef): Promise<void> {
     const target = filePath(fileDef.fileName);
@@ -56,7 +63,18 @@ export class ExcelRepository {
     const atual = await readWorkbook(target);
     const abasExistentes = new Set(atual.worksheets.map((ws) => ws.name));
     const abasFaltando = fileDef.sheets.filter((s) => !abasExistentes.has(s.name));
-    if (abasFaltando.length === 0) return;
+
+    const colunasFaltandoPorAba = new Map<string, string[]>();
+    for (const sheet of fileDef.sheets) {
+      if (!abasExistentes.has(sheet.name)) continue; // aba nova inteira, já coberta acima
+      const ws = atual.getWorksheet(sheet.name)!;
+      const headers = new Set<string>();
+      ws.getRow(1).eachCell({ includeEmpty: false }, (cell) => headers.add(String(cell.value ?? "").trim()));
+      const faltando = sheet.columns.map((c) => c.name).filter((nome) => !headers.has(nome));
+      if (faltando.length > 0) colunasFaltandoPorAba.set(sheet.name, faltando);
+    }
+
+    if (abasFaltando.length === 0 && colunasFaltandoPorAba.size === 0) return;
 
     await withFileLock(target, async () => {
       await backupFile(target);
@@ -67,6 +85,25 @@ export class ExcelRepository {
           ws.addRow(sheet.columns.map((c) => c.name));
           ws.getRow(1).font = { bold: true };
           ws.views = [{ state: "frozen", ySplit: 1 }];
+        }
+        for (const [sheetName, colunasNovas] of colunasFaltandoPorAba) {
+          const ws = wb.getWorksheet(sheetName);
+          if (!ws) continue;
+          const headerRow = ws.getRow(1);
+          const jaTem = new Set<string>();
+          headerRow.eachCell({ includeEmpty: false }, (cell) => jaTem.add(String(cell.value ?? "").trim()));
+          // Usa a extensão do próprio cabeçalho (não ws.columnCount, que reflete a
+          // linha mais larga de QUALQUER linha da aba -- uma linha de dado com
+          // mais células que o cabeçalho faria a coluna nova entrar fora de
+          // posição, deixando células vazias sem nome entre o cabeçalho antigo e o novo).
+          let proximaCol = headerRow.cellCount + 1;
+          for (const nome of colunasNovas) {
+            if (jaTem.has(nome)) continue; // já foi adicionada em outra chamada concorrente
+            headerRow.getCell(proximaCol).value = nome;
+            proximaCol++;
+          }
+          headerRow.font = { bold: true };
+          headerRow.commit();
         }
       });
     });
