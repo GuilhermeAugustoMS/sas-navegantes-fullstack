@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Sidebar, GERADOR_PROPOSTA_SLUG, FAZER_PROPOSTA_SLUG, DASHBOARD_SLUG } from "../components/Sidebar";
+import {
+  Sidebar,
+  GERADOR_PROPOSTA_SLUG,
+  FAZER_PROPOSTA_SLUG,
+  DASHBOARD_SLUG,
+  moduleKeyFromMenuSlug,
+} from "../components/Sidebar";
 import { DataTable } from "../components/DataTable";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -7,9 +13,10 @@ import { TopBar } from "../components/TopBar";
 import { PropostaGeneratorPage } from "./PropostaGeneratorPage";
 import { FazerPropostaPage } from "./FazerPropostaPage";
 import { DashboardPage } from "./DashboardPage";
+import { ModuleMenuPage } from "./ModuleMenuPage";
 import { useCatalog } from "../context/CatalogContext";
 import { useUsuario } from "../hooks/useUsuario";
-import { api, ApiError } from "../api/client";
+import { api, ApiError, MODULES } from "../api/client";
 import { hasAtivo } from "../lib/records";
 import type { RecordRow } from "../api/types";
 
@@ -33,8 +40,12 @@ export function CrudPage() {
   const isDashboard = activeSlug === DASHBOARD_SLUG;
   const isGeradorProposta = activeSlug === GERADOR_PROPOSTA_SLUG;
   const isFazerProposta = activeSlug === FAZER_PROPOSTA_SLUG;
+  const activeModuleKey = activeSlug ? moduleKeyFromMenuSlug(activeSlug) : null;
+  const isModuleMenu = activeModuleKey !== null;
   const resource =
-    activeSlug && !isDashboard && !isGeradorProposta && !isFazerProposta ? resourceBySlug.get(activeSlug) ?? null : null;
+    activeSlug && !isDashboard && !isGeradorProposta && !isFazerProposta && !isModuleMenu
+      ? resourceBySlug.get(activeSlug) ?? null
+      : null;
   const showAtivo = resource ? hasAtivo(resource) : false;
 
   const loadRows = useCallback(async () => {
@@ -101,6 +112,17 @@ export function CrudPage() {
             <TopBar title="Dashboard" subtitle="Visão geral do sistema" usuario={usuario} onUsuarioChange={setUsuario} />
             <div className="p-6">
               <DashboardPage />
+            </div>
+          </>
+        ) : isModuleMenu ? (
+          <>
+            <TopBar
+              title={MODULES.find((m) => m.key === activeModuleKey)?.label ?? ""}
+              usuario={usuario}
+              onUsuarioChange={setUsuario}
+            />
+            <div className="p-6">
+              <ModuleMenuPage moduleKey={activeModuleKey!} resources={resources} onSelect={setActiveSlug} />
             </div>
           </>
         ) : isGeradorProposta ? (
