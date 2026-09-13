@@ -264,35 +264,33 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
   const jaGerada = (parcelasExistentes?.length ?? 0) > 0;
   const podeSimular = Boolean(propostaId && idFormaPagamento && dataPagamentoEntrada) && !jaGerada;
 
-  return (
-    <div>
-      {/* Cabeçalho de identificação (layout inspirado na aba "Requerimento 2026" do
-       * Excel de referência, 2026-09-13): sempre visível, tanto na simulação quanto
-       * depois de confirmada -- só os campos que o documento real mostra (Nome do
-       * Responsável Financeiro, Nome do Aluno, Sexo, Data de Nascimento, Série). */}
-      <div className="bg-brand-navy text-white rounded-lg px-6 py-5 mb-6 flex items-center gap-5">
-        <img
-          src={logoNavegantes}
-          alt="Sas Navegantes"
-          className="h-16 w-16 rounded-full bg-white/95 p-2 shrink-0 object-contain"
-        />
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-amber">
-            Proposta Financeira{anoProposta ? ` ${anoProposta}` : ""}
+  const cabecalhoIdentificacao = (
+    <div className="bg-brand-navy text-white rounded-lg px-6 py-5 mb-5 flex items-center gap-5">
+      <img
+        src={logoNavegantes}
+        alt="Sas Navegantes"
+        className="h-16 w-16 rounded-full bg-white/95 p-2 shrink-0 object-contain"
+      />
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-amber">
+          Proposta Financeira{anoProposta ? ` ${anoProposta}` : ""}
+        </p>
+        <h2 className="text-lg font-semibold leading-tight truncate">{aluno ? String(aluno.NOME) : "—"}</h2>
+        <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-0.5 text-xs text-white/80">
+          <p><span className="text-white/50">Série:</span> {serie ? String(serie.NOME) : "—"}</p>
+          <p><span className="text-white/50">Sexo:</span> {aluno?.GENERO ? String(aluno.GENERO) : "—"}</p>
+          <p>
+            <span className="text-white/50">Nascimento:</span>{" "}
+            {aluno?.DATA_NASCIMENTO ? fmtData(String(aluno.DATA_NASCIMENTO)) : "—"}
           </p>
-          <h2 className="text-lg font-semibold leading-tight truncate">{aluno ? String(aluno.NOME) : "—"}</h2>
-          <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-0.5 text-xs text-white/80">
-            <p><span className="text-white/50">Série:</span> {serie ? String(serie.NOME) : "—"}</p>
-            <p><span className="text-white/50">Sexo:</span> {aluno?.GENERO ? String(aluno.GENERO) : "—"}</p>
-            <p>
-              <span className="text-white/50">Nascimento:</span>{" "}
-              {aluno?.DATA_NASCIMENTO ? fmtData(String(aluno.DATA_NASCIMENTO)) : "—"}
-            </p>
-            <p><span className="text-white/50">Responsável:</span> {responsavelNome ?? "—"}</p>
-          </div>
+          <p><span className="text-white/50">Responsável:</span> {responsavelNome ?? "—"}</p>
         </div>
       </div>
+    </div>
+  );
 
+  return (
+    <div>
       {toast && (
         <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">{toast}</div>
       )}
@@ -438,6 +436,13 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
 
       {(preview || (jaGerada && parcelasExistentes)) && (
         <div className="bg-white border border-slate-200 rounded-lg p-5">
+          {/* Cabeçalho de identificação (layout inspirado na aba "Requerimento 2026" do
+           * Excel de referência, 2026-09-13): junto do corpo da proposta (tabela de
+           * parcelas), não separado acima do formulário -- pedido do usuário em
+           * 2026-09-13. Aparece tanto na prévia quanto depois de confirmada, porque
+           * esse card cobre os dois casos (preview || jaGerada). */}
+          {cabecalhoIdentificacao}
+
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-800">
               {jaGerada ? "Parcelas gravadas" : "Prévia (não gravado)"}
