@@ -35,11 +35,18 @@ export interface ApiErrorBody {
   detalhes?: { field: string; problem: string }[];
 }
 
-/** Uma parcela calculada/persistida pelo Gerador de Proposta (ver backend src/calc/propostaEngine.ts). */
+/**
+ * Uma linha do cronograma calculado/persistido pelo Gerador de Proposta (ver
+ * backend src/calc/propostaEngine.ts). A linha de Entrada tem
+ * numeroParcela=0 e só valorEntrada/valorTotal preenchidos (os demais
+ * ficam 0); linhas de mensalidade (numeroParcela>=1) sempre têm
+ * valorEntrada=0.
+ */
 export interface ParcelaProposta {
   numeroParcela: number;
   mesReferencia: number;
   anoReferencia: number;
+  valorEntrada: number;
   valorMensalidade: number;
   valorMaterialDidatico: number;
   valorMaterialDidaticoIngles: number;
@@ -59,4 +66,6 @@ export interface GerarParcelasInput {
   CONTRATOU_SEMI_INTEGRAL?: boolean;
   CONTRATOU_ESTENDIDO?: boolean;
   PERCENTUAL_DESCONTO?: number;
+  /** Desconto sobre a Entrada -- independente de PERCENTUAL_DESCONTO (mensalidade). */
+  PERCENTUAL_DESCONTO_ENTRADA?: number;
 }

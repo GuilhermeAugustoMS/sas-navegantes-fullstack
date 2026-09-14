@@ -19,6 +19,18 @@
  * - Desconto percentual (opcional) incide só sobre a Mensalidade, igualmente
  *   em todas as parcelas (regra confirmada com o usuário ao adicionar o
  *   wizard "Fazer Proposta").
+ *
+ * Entrada (Regra confirmada com o usuário em 2026-09-11, ao adicionar o
+ * layout parecido com o Excel real da escola): é uma cobrança à parte,
+ * somada às mensalidades (não substitui a do mês de entrada), sempre no
+ * valor cheio de TabelaPrecos.ENTRADA -- não sofre a proração por dia/mês
+ * que a mensalidade do mês de entrada sofre, nem o multiplicador da Forma
+ * de Pagamento. Só o desconto próprio dela (percentualDescontoEntrada,
+ * independente do percentualDesconto da mensalidade) altera o valor.
+ * Calculada por `calcularEntrada`, uma função separada de `gerarParcelas`
+ * (que continua só sobre as mensalidades, sem nenhuma alteração) -- quem
+ * monta o cronograma completo combinando as duas é a rota
+ * (propostaGenerator.routes.ts).
  */
 
 export interface PrecoSerie {
@@ -128,4 +140,37 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
   }
 
   return parcelas;
+}
+
+export interface EntradaCalculada {
+  numeroParcela: 0;
+  mesReferencia: number;
+  anoReferencia: number;
+  valorEntrada: number;
+  valorTotal: number;
+}
+
+export interface CalcularEntradaInput {
+  valorEntrada: number; // TabelaPrecos.ENTRADA da Série
+  mesReferencia: number; // mês de entrada do aluno, só pra registro no cronograma -- não afeta o valor
+  anoReferencia: number;
+  percentualDescontoEntrada?: number; // 0-100, independente do percentualDesconto da mensalidade; default 0
+}
+
+/**
+ * Calcula a linha de Entrada do cronograma (NUMERO_PARCELA=0). Função
+ * separada de gerarParcelas de propósito: a Entrada não é prorateada por
+ * dia/mês nem multiplicada pela Forma de Pagamento, só sofre o desconto
+ * próprio dela -- ver comentário no topo do arquivo.
+ */
+export function calcularEntrada(input: CalcularEntradaInput): EntradaCalculada {
+  const fatorDesconto = 1 - (input.percentualDescontoEntrada ?? 0) / 100;
+  const valor = round2(input.valorEntrada * fatorDesconto);
+  return {
+    numeroParcela: 0,
+    mesReferencia: input.mesReferencia,
+    anoReferencia: input.anoReferencia,
+    valorEntrada: valor,
+    valorTotal: valor,
+  };
 }

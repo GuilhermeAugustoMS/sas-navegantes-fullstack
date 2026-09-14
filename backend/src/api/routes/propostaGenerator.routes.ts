@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { ExcelRepository } from "../../excel/ExcelRepository.js";
 import { CADASTROS, COMERCIAL, FINANCEIRO } from "../../schema/files.js";
-import { gerarParcelas, type ProgramaExtraValor } from "../../calc/propostaEngine.js";
+import { gerarParcelas, calcularEntrada, type ProgramaExtraValor, type ParcelaCalculada, type EntradaCalculada } from "../../calc/propostaEngine.js";
 import { BusinessRuleError } from "../../services/CrudService.js";
 
 /**
@@ -57,6 +57,9 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
 
       const tabelaPrecos = (await repo.query(FINANCEIRO, "TabelaPrecos", (r) => r.ID_SERIE === idSerie && r.ATIVO === true))[0];
       if (!tabelaPrecos) errors.push({ field: "ID_SERIE", problem: `Não há Tabela de Preços ativa para a série ${idSerie}.` });
+      else if (tabelaPrecos.ENTRADA === null || tabelaPrecos.ENTRADA === undefined) {
+        errors.push({ field: "ENTRADA", problem: `A Tabela de Preços ativa para a série ${idSerie} não tem valor de Entrada configurado.` });
+      }
 
       const idFormaPagamento = String(body.ID_FORMA_PAGAMENTO ?? "");
       const formaPagamento = idFormaPagamento
@@ -84,6 +87,15 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         errors.push({ field: "PERCENTUAL_DESCONTO", problem: "Deve ser um número de 0 a 100." });
       }
 
+      const percentualDescontoEntradaRaw = body.PERCENTUAL_DESCONTO_ENTRADA;
+      const percentualDescontoEntrada =
+        percentualDescontoEntradaRaw === undefined || percentualDescontoEntradaRaw === null || percentualDescontoEntradaRaw === ""
+          ? 0
+          : Number(percentualDescontoEntradaRaw);
+      if (Number.isNaN(percentualDescontoEntrada) || percentualDescontoEntrada < 0 || percentualDescontoEntrada > 100) {
+        errors.push({ field: "PERCENTUAL_DESCONTO_ENTRADA", problem: "Deve ser um número de 0 a 100." });
+      }
+
       let anoReferencia: number | undefined;
       if (serie) {
         const anoLetivo = await repo.findById(CADASTROS, "AnosLetivos", String(serie.ID_ANO_LETIVO));
@@ -108,7 +120,7 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         extrasContratados.push({ nome, valorMes: Number(programa.VALOR_MES) });
       }
 
-      const parcelas = gerarParcelas({
+      const parcelasMensais = gerarParcelas({
         precoSerie: {
           MENSALIDADE: Number(tabelaPrecos!.MENSALIDADE),
           MATERIAL_DIDATICO: Number(tabelaPrecos!.MATERIAL_DIDATICO),
@@ -124,29 +136,43 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         percentualDesconto,
       });
 
+      const entrada = calcularEntrada({
+        valorEntrada: Number(tabelaPrecos!.ENTRADA),
+        mesReferencia: mesEntrada,
+        anoReferencia: anoReferencia!,
+        percentualDescontoEntrada,
+      });
+
+      // Cronograma completo (o que sai pro frontend e o que é persistido):
+      // Entrada primeiro (NUMERO_PARCELA=0), depois as mensalidades, sem
+      // alterar a ordem/numeração que gerarParcelas já produz.
+      const cronograma = [entradaParaLinha(entrada), ...parcelasMensais.map(mensalParaLinha)];
+      const valorTotalMes = parcelasMensais.at(-1)?.valorTotal ?? 0; // não inclui a Entrada -- é o custo mensal recorrente
+
       if (preview) {
-        res.json({ parcelas, valorTotalMes: parcelas.at(-1)?.valorTotal ?? 0 });
+        res.json({ parcelas: cronograma, valorTotalMes });
         return;
       }
 
       const persistidas = [];
-      for (const p of parcelas) {
+      for (const linha of cronograma) {
         const rec = await repo.insert(
           COMERCIAL,
           "ParcelasProposta",
           {
             ID_PROPOSTA: propostaId,
-            NUMERO_PARCELA: p.numeroParcela,
-            MES_REFERENCIA: p.mesReferencia,
-            ANO_REFERENCIA: p.anoReferencia,
-            VALOR_MENSALIDADE: p.valorMensalidade,
-            VALOR_MATERIAL_DIDATICO: p.valorMaterialDidatico,
-            VALOR_MATERIAL_DIDATICO_INGLES: p.valorMaterialDidaticoIngles,
-            VALOR_ALIMENTACAO: p.valorAlimentacao,
-            VALOR_INTEGRAL: p.valorIntegral,
-            VALOR_SEMI_INTEGRAL: p.valorSemiIntegral,
-            VALOR_ESTENDIDO: p.valorEstendido,
-            VALOR_TOTAL: p.valorTotal,
+            NUMERO_PARCELA: linha.numeroParcela,
+            MES_REFERENCIA: linha.mesReferencia,
+            ANO_REFERENCIA: linha.anoReferencia,
+            VALOR_ENTRADA: linha.valorEntrada,
+            VALOR_MENSALIDADE: linha.valorMensalidade,
+            VALOR_MATERIAL_DIDATICO: linha.valorMaterialDidatico,
+            VALOR_MATERIAL_DIDATICO_INGLES: linha.valorMaterialDidaticoIngles,
+            VALOR_ALIMENTACAO: linha.valorAlimentacao,
+            VALOR_INTEGRAL: linha.valorIntegral,
+            VALOR_SEMI_INTEGRAL: linha.valorSemiIntegral,
+            VALOR_ESTENDIDO: linha.valorEstendido,
+            VALOR_TOTAL: linha.valorTotal,
           },
           { usuario: req.usuario },
         );
@@ -157,11 +183,11 @@ export function propostaGeneratorRouter(repo: ExcelRepository): Router {
         COMERCIAL,
         "Propostas",
         propostaId,
-        { VALOR_TOTAL_MES: parcelas.at(-1)?.valorTotal ?? 0, PERCENTUAL_DESCONTO: percentualDesconto },
+        { VALOR_TOTAL_MES: valorTotalMes, PERCENTUAL_DESCONTO: percentualDesconto, PERCENTUAL_DESCONTO_ENTRADA: percentualDescontoEntrada },
         { usuario: req.usuario, motivo: "Gerador de Proposta: parcelas calculadas" },
       );
 
-      res.status(201).json({ parcelas: persistidas.map(toParcelaProposta), valorTotalMes: parcelas.at(-1)?.valorTotal ?? 0 });
+      res.status(201).json({ parcelas: persistidas.map(toParcelaProposta), valorTotalMes });
     } catch (err) {
       next(err);
     }
@@ -196,6 +222,7 @@ function toParcelaProposta(rec: Record<string, unknown>) {
     numeroParcela: Number(rec.NUMERO_PARCELA),
     mesReferencia: Number(rec.MES_REFERENCIA),
     anoReferencia: Number(rec.ANO_REFERENCIA),
+    valorEntrada: Number(rec.VALOR_ENTRADA ?? 0),
     valorMensalidade: Number(rec.VALOR_MENSALIDADE),
     valorMaterialDidatico: Number(rec.VALOR_MATERIAL_DIDATICO),
     valorMaterialDidaticoIngles: Number(rec.VALOR_MATERIAL_DIDATICO_INGLES),
@@ -205,4 +232,42 @@ function toParcelaProposta(rec: Record<string, unknown>) {
     valorEstendido: Number(rec.VALOR_ESTENDIDO),
     valorTotal: Number(rec.VALOR_TOTAL),
   };
+}
+
+/** Cronograma completo (Entrada + mensalidades) num formato único, o que
+ * simplifica tanto a resposta JSON quanto o loop de persistência abaixo. */
+interface LinhaCronograma {
+  numeroParcela: number;
+  mesReferencia: number;
+  anoReferencia: number;
+  valorEntrada: number;
+  valorMensalidade: number;
+  valorMaterialDidatico: number;
+  valorMaterialDidaticoIngles: number;
+  valorAlimentacao: number;
+  valorIntegral: number;
+  valorSemiIntegral: number;
+  valorEstendido: number;
+  valorTotal: number;
+}
+
+function entradaParaLinha(e: EntradaCalculada): LinhaCronograma {
+  return {
+    numeroParcela: e.numeroParcela,
+    mesReferencia: e.mesReferencia,
+    anoReferencia: e.anoReferencia,
+    valorEntrada: e.valorEntrada,
+    valorMensalidade: 0,
+    valorMaterialDidatico: 0,
+    valorMaterialDidaticoIngles: 0,
+    valorAlimentacao: 0,
+    valorIntegral: 0,
+    valorSemiIntegral: 0,
+    valorEstendido: 0,
+    valorTotal: e.valorTotal,
+  };
+}
+
+function mensalParaLinha(p: ParcelaCalculada): LinhaCronograma {
+  return { ...p, valorEntrada: 0 };
 }

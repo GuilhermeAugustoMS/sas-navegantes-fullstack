@@ -41,8 +41,17 @@ export class ExcelRepository {
    * Cria o arquivo com todas as abas/cabeçalhos do FileDef, se ainda não existir.
    * Se o arquivo já existir (caso comum: o schema ganhou uma aba nova depois que
    * o .xlsx real já tinha sido criado), acrescenta só as abas que estiverem
-   * faltando -- nunca mexe nas abas/dados já existentes. Idempotente: rodar de
-   * novo depois que todas as abas já existem não faz nada.
+   * faltando -- nunca mexe nas abas/dados já existentes. Também acrescenta, na
+   * linha de cabeçalho de abas já existentes, os rótulos de colunas que o
+   * schema ganhou depois que a aba já tinha sido criada (ex.: PERCENTUAL_
+   * DESCONTO em Propostas, adicionado numa sessão anterior sem isso -- o
+   * cabeçalho real ficou sem rótulo pra essa coluna, mesmo com dados sendo
+   * gravados nela, porque append/update escrevem por posição usando a ordem
+   * do schema). Só toca a linha 1 (cabeçalho); nenhuma linha de dado é
+   * alterada. Por isso é essencial que colunas novas sejam sempre
+   * acrescentadas ao FINAL do array `columns` de cada aba no schema (nunca
+   * inseridas no meio) -- ver comentário em schema/files.ts. Idempotente:
+   * rodar de novo depois que tudo já está em dia não faz nada.
    */
   async ensureFile(fileDef: FileDef): Promise<void> {
     const target = filePath(fileDef.fileName);
@@ -56,7 +65,18 @@ export class ExcelRepository {
     const atual = await readWorkbook(target);
     const abasExistentes = new Set(atual.worksheets.map((ws) => ws.name));
     const abasFaltando = fileDef.sheets.filter((s) => !abasExistentes.has(s.name));
-    if (abasFaltando.length === 0) return;
+
+    const colunasFaltandoPorAba = new Map<string, SheetDef>();
+    for (const sheet of fileDef.sheets) {
+      if (!abasExistentes.has(sheet.name)) continue; // será criada do zero abaixo, já com todos os cabeçalhos
+      const ws = atual.getWorksheet(sheet.name)!;
+      const rotulosAtuais = new Set<string>();
+      ws.getRow(1).eachCell({ includeEmpty: false }, (cell) => rotulosAtuais.add(String(cell.value ?? "").trim()));
+      const temColunaFaltando = sheet.columns.some((c) => !rotulosAtuais.has(c.name));
+      if (temColunaFaltando) colunasFaltandoPorAba.set(sheet.name, sheet);
+    }
+
+    if (abasFaltando.length === 0 && colunasFaltandoPorAba.size === 0) return;
 
     await withFileLock(target, async () => {
       await backupFile(target);
@@ -67,6 +87,17 @@ export class ExcelRepository {
           ws.addRow(sheet.columns.map((c) => c.name));
           ws.getRow(1).font = { bold: true };
           ws.views = [{ state: "frozen", ySplit: 1 }];
+        }
+        for (const sheet of colunasFaltandoPorAba.values()) {
+          const ws = wb.getWorksheet(sheet.name);
+          if (!ws) continue;
+          const headerRow = ws.getRow(1);
+          sheet.columns.forEach((c, idx) => {
+            const cell = headerRow.getCell(idx + 1);
+            if (!cell.value) cell.value = c.name;
+          });
+          headerRow.font = { bold: true };
+          headerRow.commit();
         }
       });
     });

@@ -1,5 +1,16 @@
 import type { FileDef } from "../types/schema.js";
 
+/**
+ * IMPORTANTE: ao adicionar uma coluna nova a uma aba que já existe em dados
+ * reais (backend/data/*.xlsx), ela precisa ser SEMPRE acrescentada ao FINAL
+ * do array `columns` daquela aba, nunca inserida no meio. O motivo:
+ * ExcelRepository grava linhas por POSIÇÃO (não por nome de coluna),
+ * seguindo a ordem deste array -- inserir uma coluna no meio desalinharia
+ * todas as colunas seguintes em relação aos dados já gravados nas linhas
+ * antigas. (Leitura já é tolerante a colunas ausentes/novas por nome; só a
+ * escrita é posicional.) ExcelRepository.ensureFile cuida de acrescentar o
+ * rótulo da coluna nova na linha de cabeçalho de arquivos já existentes.
+ */
 const AUDIT_COMMON = ["ATIVO"]; // toda entidade cadastral usa exclusão lógica (Seção 62)
 
 export const CADASTROS: FileDef = {
@@ -261,6 +272,12 @@ export const FINANCEIRO: FileDef = {
         { name: "ALIMENTACAO", type: "number", required: true },
         { name: "DATA_VIGENCIA", type: "date", required: true },
         { name: "ATIVO", type: "boolean", required: true },
+        // Valor da Entrada cobrado na Proposta (Seção 22), além das
+        // mensalidades -- não sofre proração por dia/mês nem o multiplicador
+        // da Forma de Pagamento, só o desconto próprio dela (Propostas.
+        // PERCENTUAL_DESCONTO_ENTRADA). Adicionada ao final por causa da
+        // regra de posição de coluna explicada no topo deste arquivo.
+        { name: "ENTRADA", type: "number", required: true },
       ],
     },
     {
@@ -390,6 +407,9 @@ export const COMERCIAL: FileDef = {
         { name: "STATUS", type: "enum", enumValues: ["Criada", "Aprovada", "Recusada", "Cancelada", "Aceita"], required: true },
         { name: "VALOR_TOTAL_MES", type: "number" },
         { name: "PERCENTUAL_DESCONTO", type: "number" },
+        // Desconto sobre a Entrada (TabelaPrecos.ENTRADA) -- independente do
+        // PERCENTUAL_DESCONTO acima, que incide só sobre a Mensalidade.
+        { name: "PERCENTUAL_DESCONTO_ENTRADA", type: "number" },
       ],
     },
     {
@@ -456,6 +476,10 @@ export const COMERCIAL: FileDef = {
         { name: "VALOR_SEMI_INTEGRAL", type: "number", required: true },
         { name: "VALOR_ESTENDIDO", type: "number", required: true },
         { name: "VALOR_TOTAL", type: "number", required: true },
+        // Linha especial da Entrada usa NUMERO_PARCELA=0 e só preenche este
+        // campo (os demais VALOR_* ficam 0); linhas de mensalidade (NUMERO_
+        // PARCELA>=1) sempre gravam 0 aqui.
+        { name: "VALOR_ENTRADA", type: "number", required: true },
       ],
     },
     {

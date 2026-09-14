@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gerarParcelas } from "../src/calc/propostaEngine.js";
+import { gerarParcelas, calcularEntrada } from "../src/calc/propostaEngine.js";
 
 const PRECO_SERIE = {
   MENSALIDADE: 1600,
@@ -212,5 +212,42 @@ describe("CalculationEngine — gerarParcelas (Gerador de Proposta)", () => {
         extrasContratados: [],
       }),
     ).toThrow();
+  });
+});
+
+describe("CalculationEngine — calcularEntrada (Entrada da Proposta)", () => {
+  it("usa o valor cheio de ENTRADA quando não há desconto", () => {
+    const entrada = calcularEntrada({ valorEntrada: 500, mesReferencia: 8, anoReferencia: 2027 });
+
+    expect(entrada.numeroParcela).toBe(0);
+    expect(entrada.mesReferencia).toBe(8);
+    expect(entrada.anoReferencia).toBe(2027);
+    expect(entrada.valorEntrada).toBe(500);
+    expect(entrada.valorTotal).toBe(500);
+  });
+
+  it("não altera nada quando percentualDescontoEntrada é omitido ou 0 (retrocompatibilidade)", () => {
+    const semCampo = calcularEntrada({ valorEntrada: 500, mesReferencia: 1, anoReferencia: 2027 });
+    const comZero = calcularEntrada({ valorEntrada: 500, mesReferencia: 1, anoReferencia: 2027, percentualDescontoEntrada: 0 });
+
+    expect(semCampo.valorEntrada).toBe(500);
+    expect(comZero.valorEntrada).toBe(500);
+  });
+
+  it("aplica percentualDescontoEntrada sobre o valor da Entrada", () => {
+    const entrada = calcularEntrada({ valorEntrada: 500, mesReferencia: 1, anoReferencia: 2027, percentualDescontoEntrada: 20 });
+
+    expect(entrada.valorEntrada).toBeCloseTo(500 * 0.8, 2);
+    expect(entrada.valorTotal).toBeCloseTo(500 * 0.8, 2);
+  });
+
+  it("é o mesmo valor cheio independente do mês/dia de entrada (não é prorateada, ao contrário da mensalidade)", () => {
+    // mesReferencia aqui é só o mês registrado no cronograma -- não afeta o cálculo,
+    // diferente de gerarParcelas (mensalidade), que rateia pelo dia de entrada.
+    const entradaJaneiro = calcularEntrada({ valorEntrada: 500, mesReferencia: 1, anoReferencia: 2027 });
+    const entradaDezembro = calcularEntrada({ valorEntrada: 500, mesReferencia: 12, anoReferencia: 2027 });
+
+    expect(entradaJaneiro.valorEntrada).toBe(500);
+    expect(entradaDezembro.valorEntrada).toBe(500);
   });
 });

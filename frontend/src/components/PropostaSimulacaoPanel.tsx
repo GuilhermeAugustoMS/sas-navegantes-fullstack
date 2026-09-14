@@ -29,6 +29,17 @@ interface Props {
  * aqui). A lógica de cálculo/persistência em si não muda: só simula
  * (preview) até o usuário confirmar, e uma vez confirmada a proposta fica
  * congelada (o backend recusa gerar de novo para a mesma Proposta).
+ *
+ * A tabela de parcelas foi ajustada em 2026-09-11 pra ficar parecida com o
+ * modelo em Excel que a escola já usa pra apresentar a Proposta à família
+ * (print de referência do usuário): a linha de Entrada (NUMERO_PARCELA=0)
+ * aparece destacada, e o cabeçalho "Total" virou "Montante Negociado". Não
+ * foi reproduzido o bloco de cabeçalho do Excel (dados do Aluno/Responsável,
+ * Série, datas etc.) — fora do escopo confirmado com o usuário (só a tabela
+ * de parcelas), e a maior parte desses campos não é responsabilidade deste
+ * componente. A Entrada tem seu próprio desconto (PERCENTUAL_DESCONTO_
+ * ENTRADA), independente do desconto da Mensalidade (PERCENTUAL_DESCONTO) —
+ * ver propostaEngine.ts.
  */
 export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, onGerado }: Props) {
   const { resourceBySlug } = useCatalog();
@@ -37,6 +48,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
 
   const [statusProposta, setStatusProposta] = useState<string | null>(null);
   const [descontoPersistido, setDescontoPersistido] = useState<number | null>(null);
+  const [descontoEntradaPersistido, setDescontoEntradaPersistido] = useState<number | null>(null);
   const [descontoAberto, setDescontoAberto] = useState(false);
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
   const [cancelando, setCancelando] = useState(false);
@@ -49,6 +61,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
   const [contratouSemiIntegral, setContratouSemiIntegral] = useState(false);
   const [contratouEstendido, setContratouEstendido] = useState(false);
   const [percentualDesconto, setPercentualDesconto] = useState(0);
+  const [percentualDescontoEntrada, setPercentualDescontoEntrada] = useState(0);
 
   const [preview, setPreview] = useState<{ parcelas: ParcelaProposta[]; valorTotalMes: number } | null>(null);
   const [simulando, setSimulando] = useState(false);
@@ -93,9 +106,11 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       const rec = await api.get(propostasResource, propostaId);
       setStatusProposta(String(rec.STATUS ?? ""));
       setDescontoPersistido(typeof rec.PERCENTUAL_DESCONTO === "number" ? rec.PERCENTUAL_DESCONTO : null);
+      setDescontoEntradaPersistido(typeof rec.PERCENTUAL_DESCONTO_ENTRADA === "number" ? rec.PERCENTUAL_DESCONTO_ENTRADA : null);
     } catch {
       setStatusProposta(null);
       setDescontoPersistido(null);
+      setDescontoEntradaPersistido(null);
     }
   }
 
@@ -129,6 +144,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       CONTRATOU_SEMI_INTEGRAL: contratouSemiIntegral,
       CONTRATOU_ESTENDIDO: contratouEstendido,
       PERCENTUAL_DESCONTO: percentualDesconto,
+      PERCENTUAL_DESCONTO_ENTRADA: percentualDescontoEntrada,
     };
   }
 
@@ -157,9 +173,11 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
     }
   }
 
-  // Recalcula a Prévia automaticamente quando o desconto é ajustado no painel
-  // expansível (só depois da 1ª simulação manual, e só antes de confirmar --
-  // uma vez congeladas, as parcelas não recalculam mais, Seção 54).
+  // Recalcula a Prévia automaticamente quando algum dos dois descontos
+  // (mensalidade ou entrada) é ajustado no painel expansível (só depois da
+  // 1ª simulação manual, e só antes de confirmar -- uma vez congeladas, as
+  // parcelas não recalculam mais, Seção 54). São independentes: mexer num
+  // não altera o valor do outro.
   useEffect(() => {
     if (jaGerada || !preview || !descontoAberto) return;
     const t = setTimeout(() => {
@@ -167,7 +185,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [percentualDesconto]);
+  }, [percentualDesconto, percentualDescontoEntrada]);
 
   async function handleConfirmar() {
     if (!propostaId || !idFormaPagamento) return;
@@ -179,6 +197,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
       setPreview(res);
       setParcelasExistentes(res.parcelas);
       setDescontoPersistido(percentualDesconto);
+      setDescontoEntradaPersistido(percentualDescontoEntrada);
       setToast("Proposta gerada e parcelas gravadas com sucesso (histórico congelado).");
       onGerado?.(res);
     } catch (err) {
@@ -357,25 +376,43 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
                 <span className="h-1 w-1 rounded-full bg-current" />
               </button>
               {descontoAberto && (
-                <div className="mt-2 flex items-center gap-2">
-                  <label className="text-xs font-medium text-slate-600">Desconto (%) sobre Mensalidade</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.01"
-                    value={percentualDesconto}
-                    onChange={(e) => setPercentualDesconto(Number(e.target.value))}
-                    className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
-                  />
+                <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-600">Desconto (%) sobre Mensalidade</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={percentualDesconto}
+                      onChange={(e) => setPercentualDesconto(Number(e.target.value))}
+                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-600">Desconto (%) sobre Entrada</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={percentualDescontoEntrada}
+                      onChange={(e) => setPercentualDescontoEntrada(Number(e.target.value))}
+                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                    />
+                  </div>
                   {simulando && <span className="text-xs text-slate-400">recalculando...</span>}
                 </div>
               )}
             </div>
           )}
 
-          {jaGerada && descontoPersistido !== null && descontoPersistido > 0 && (
-            <p className="text-xs text-slate-500 mb-4">Desconto aplicado: {descontoPersistido}%</p>
+          {jaGerada && ((descontoPersistido !== null && descontoPersistido > 0) || (descontoEntradaPersistido !== null && descontoEntradaPersistido > 0)) && (
+            <p className="text-xs text-slate-500 mb-4">
+              {descontoPersistido !== null && descontoPersistido > 0 && <>Desconto na mensalidade: {descontoPersistido}%</>}
+              {descontoPersistido !== null && descontoPersistido > 0 && descontoEntradaPersistido !== null && descontoEntradaPersistido > 0 && " · "}
+              {descontoEntradaPersistido !== null && descontoEntradaPersistido > 0 && <>Desconto na entrada: {descontoEntradaPersistido}%</>}
+            </p>
           )}
 
           <div className="overflow-x-auto">
@@ -384,6 +421,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
                 <tr className="text-left text-slate-500 border-b border-slate-200">
                   <th className="py-1 pr-3">#</th>
                   <th className="py-1 pr-3">Mês/Ano</th>
+                  <th className="py-1 pr-3 text-right">Entrada</th>
                   <th className="py-1 pr-3 text-right">Mensalidade</th>
                   <th className="py-1 pr-3 text-right">Mat. Didático</th>
                   <th className="py-1 pr-3 text-right">Mat. Inglês</th>
@@ -391,24 +429,28 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, o
                   <th className="py-1 pr-3 text-right">Integral</th>
                   <th className="py-1 pr-3 text-right">Semi-Int.</th>
                   <th className="py-1 pr-3 text-right">Estendido</th>
-                  <th className="py-1 pr-3 text-right font-semibold">Total</th>
+                  <th className="py-1 pr-3 text-right font-semibold">Montante Negociado</th>
                 </tr>
               </thead>
               <tbody>
-                {(jaGerada ? parcelasExistentes! : preview!.parcelas).map((p) => (
-                  <tr key={p.numeroParcela} className="border-b border-slate-100">
-                    <td className="py-1 pr-3">{p.numeroParcela}</td>
-                    <td className="py-1 pr-3">{MESES[p.mesReferencia - 1]}/{p.anoReferencia}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMensalidade)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMaterialDidatico)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorMaterialDidaticoIngles)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorAlimentacao)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorIntegral)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorSemiIntegral)}</td>
-                    <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorEstendido)}</td>
-                    <td className="py-1 pr-3 text-right font-semibold">{fmtMoeda(p.valorTotal)}</td>
-                  </tr>
-                ))}
+                {(jaGerada ? parcelasExistentes! : preview!.parcelas).map((p) => {
+                  const ehEntrada = p.numeroParcela === 0;
+                  return (
+                    <tr key={p.numeroParcela} className={`border-b border-slate-100 ${ehEntrada ? "bg-brand-navy/5 font-medium" : ""}`}>
+                      <td className="py-1 pr-3">{p.numeroParcela === 0 ? "—" : p.numeroParcela}</td>
+                      <td className="py-1 pr-3">{ehEntrada ? "Entrada" : `${MESES[p.mesReferencia - 1]}/${p.anoReferencia}`}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? fmtMoeda(p.valorEntrada) : "—"}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? "—" : fmtMoeda(p.valorMensalidade)}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? "—" : fmtMoeda(p.valorMaterialDidatico)}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? "—" : fmtMoeda(p.valorMaterialDidaticoIngles)}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? "—" : fmtMoeda(p.valorAlimentacao)}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? "—" : fmtMoeda(p.valorIntegral)}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? "—" : fmtMoeda(p.valorSemiIntegral)}</td>
+                      <td className="py-1 pr-3 text-right">{ehEntrada ? "—" : fmtMoeda(p.valorEstendido)}</td>
+                      <td className="py-1 pr-3 text-right font-semibold">{fmtMoeda(p.valorTotal)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
