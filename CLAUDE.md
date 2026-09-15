@@ -32,6 +32,38 @@ mais importantes:
 — este é o histórico real do projeto (conectado em 2026-09-07). Branch
 principal: `main`.
 
+## Rotina de sincronização (projeto trabalhado em 2 computadores)
+
+Este projeto é trabalhado em mais de um computador do usuário, sincronizado via
+git (`origin` = https://github.com/GuilhermeAugustoMS/sas-navegantes-fullstack,
+privado). Para nunca perder trabalho nem trabalhar em cima de uma versão
+desatualizada:
+
+**Antes de começar a trabalhar em qualquer sessão** (Claude Code, Codex, ou o
+próprio usuário no terminal):
+1. Rodar `git status` — se houver alterações não commitadas de uma sessão
+   anterior nesta mesma máquina, resolver isso primeiro (perguntar ao usuário
+   antes de descartar qualquer coisa).
+2. Rodar `git pull` (ou `git pull --ff-only origin main`) antes de editar
+   qualquer arquivo. Se o pull não for fast-forward (há commits locais e
+   remotos divergentes), parar e avisar o usuário em vez de resolver conflito
+   sozinho sem confirmação.
+
+**Antes de encerrar a sessão / trocar de computador:**
+3. Commitar todo trabalho concluído (nunca deixar mudança importante só
+   local, sem commit).
+4. Rodar `git push` antes de fechar o editor/terminal nesta máquina.
+5. Se o trabalho ficou pela metade (não dá pra commitar algo funcional),
+   avisar isso claramente no fim da sessão (ex.: no resumo pro usuário) para
+   que ele saiba que vai continuar dali na outra máquina, ou usar
+   `git stash` só se o próprio usuário confirmar que quer isso.
+
+**Regra geral**: nunca supor que o estado local está atualizado só porque
+"a sessão anterior terminou bem" — sempre confirmar com `git status`/`git log`
+no início. Isso evita o tipo de problema que já aconteceu neste projeto antes
+(ver checkpoint `claude/checkpoint-fase1-comercial.md`, Atualização 4: troca de
+máquina exigiu reinstalar dependências e resolver `node_modules` órfão).
+
 ## Arquitetura
 
 ```

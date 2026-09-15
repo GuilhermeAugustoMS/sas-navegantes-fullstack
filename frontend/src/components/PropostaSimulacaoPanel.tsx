@@ -47,7 +47,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
 
   const [statusProposta, setStatusProposta] = useState<string | null>(null);
   const [anoProposta, setAnoProposta] = useState<number | null>(null);
-  const [responsavelNome, setResponsavelNome] = useState<string | null>(null);
+  const [responsavelFinanceiro, setResponsavelFinanceiro] = useState<RecordRow | null>(null);
   const [descontoPersistido, setDescontoPersistido] = useState<number | null>(null);
   const [descontoEntradaPersistido, setDescontoEntradaPersistido] = useState<number | null>(null);
   const [dataPagamentoEntradaPersistida, setDataPagamentoEntradaPersistida] = useState<string | null>(null);
@@ -137,12 +137,14 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
   // vinculado (ResponsaveisFinanceiros, N:N com TIPO Legal/Financeiro/Legal e
   // Financeiro) -- prioriza o vínculo "Financeiro", depois "Legal e Financeiro",
   // conforme decisão do usuário (o documento real só tem espaço para um nome).
+  // Telefone/Email adicionados em 2026-09-15 (mesma prioridade, exibidos junto
+  // do Nome) -- ver RecordFormModal.tsx, onde o vínculo agora é exigido.
   useEffect(() => {
     let cancelled = false;
     async function carregarResponsavel() {
       const idAluno = aluno ? String(aluno.ID_ALUNO) : "";
       if (!idAluno) {
-        setResponsavelNome(null);
+        setResponsavelFinanceiro(null);
         return;
       }
       const vinculosResource = resourceBySlug.get("vinculos-responsavel");
@@ -155,13 +157,13 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
           vinculos.find((v) => v.TIPO === "Legal e Financeiro") ??
           null;
         if (!vinculo) {
-          if (!cancelled) setResponsavelNome(null);
+          if (!cancelled) setResponsavelFinanceiro(null);
           return;
         }
         const responsavel = await api.get(responsaveisResource, String(vinculo.ID_RESPONSAVEL));
-        if (!cancelled) setResponsavelNome(String(responsavel.NOME ?? ""));
+        if (!cancelled) setResponsavelFinanceiro(responsavel);
       } catch {
-        if (!cancelled) setResponsavelNome(null);
+        if (!cancelled) setResponsavelFinanceiro(null);
       }
     }
     carregarResponsavel();
@@ -265,7 +267,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
   const podeSimular = Boolean(propostaId && idFormaPagamento && dataPagamentoEntrada) && !jaGerada;
 
   const cabecalhoIdentificacao = (
-    <div className="bg-brand-navy text-white rounded-lg px-6 py-5 mb-5 flex items-center gap-5">
+    <div id="cabecalho-identificacao-impressao" className="bg-brand-navy text-white rounded-lg px-6 py-5 mb-5 flex items-center gap-5">
       <img
         src={logoNavegantes}
         alt="Sas Navegantes"
@@ -283,7 +285,15 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
             <span className="text-white/50">Nascimento:</span>{" "}
             {aluno?.DATA_NASCIMENTO ? fmtData(String(aluno.DATA_NASCIMENTO)) : "—"}
           </p>
-          <p><span className="text-white/50">Responsável:</span> {responsavelNome ?? "—"}</p>
+          <p><span className="text-white/50">Responsável:</span> {responsavelFinanceiro ? String(responsavelFinanceiro.NOME) : "—"}</p>
+          <p>
+            <span className="text-white/50">Telefone:</span>{" "}
+            {responsavelFinanceiro?.TELEFONE ? String(responsavelFinanceiro.TELEFONE) : "—"}
+          </p>
+          <p>
+            <span className="text-white/50">Email:</span>{" "}
+            {responsavelFinanceiro?.EMAIL ? String(responsavelFinanceiro.EMAIL) : "—"}
+          </p>
         </div>
       </div>
     </div>
@@ -435,7 +445,44 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
       )}
 
       {(preview || (jaGerada && parcelasExistentes)) && (
-        <div className="bg-white border border-slate-200 rounded-lg p-5">
+        <div id="proposta-imprimivel" className="bg-white border border-slate-200 rounded-lg p-5">
+          {/* Impressão/"PDF" (2026-09-15): sem biblioteca nova -- window.print() do
+           * navegador + CSS de impressão dedicado (ver <style> logo abaixo), que
+           * esconde o resto da página e imprime só este card (cabeçalho + tabela).
+           * Ajustes de 2026-09-15 (pedido explícito do usuário, sem supor nada
+           * além do confirmado): (1) o fundo azul-marinho do cabeçalho de
+           * identificação precisa sair colorido na impressão -- por padrão o
+           * navegador omite cor de fundo ao imprimir (pra economizar tinta), daí
+           * o print-color-adjust:exact escopado só nesse card (id
+           * cabecalho-identificacao-impressao), não no resto da página; (2) texto
+           * quebrando em duas linhas dentro das células da tabela de parcelas
+           * (11 colunas) -- mantém retrato (não pediu paisagem) e impede a quebra
+           * com white-space:nowrap, diminuindo a fonte da tabela o quanto for
+           * preciso pra caber. */}
+          <style>{`
+            @media print {
+              body * { visibility: hidden; }
+              #proposta-imprimivel, #proposta-imprimivel * { visibility: visible; }
+              #proposta-imprimivel { position: absolute; left: 0; top: 0; width: 100%; border: none; }
+
+              #cabecalho-identificacao-impressao,
+              #cabecalho-identificacao-impressao * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+
+              #proposta-imprimivel table {
+                font-size: 8px;
+              }
+              #proposta-imprimivel th,
+              #proposta-imprimivel td {
+                white-space: nowrap;
+                padding-left: 4px;
+                padding-right: 4px;
+              }
+            }
+          `}</style>
+
           {/* Cabeçalho de identificação (layout inspirado na aba "Requerimento 2026" do
            * Excel de referência, 2026-09-13): junto do corpo da proposta (tabela de
            * parcelas), não separado acima do formulário -- pedido do usuário em
@@ -447,19 +494,28 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
             <h3 className="text-sm font-semibold text-slate-800">
               {jaGerada ? "Parcelas gravadas" : "Prévia (não gravado)"}
             </h3>
-            {!jaGerada && preview && (
+            <div className="flex items-center gap-2 print:hidden">
               <button
-                onClick={handleConfirmar}
-                disabled={confirmando}
-                className="px-3 py-1.5 text-sm rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark disabled:opacity-40"
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
               >
-                {confirmando ? "Gravando..." : "Confirmar Proposta"}
+                Baixar / Imprimir PDF
               </button>
-            )}
+              {!jaGerada && preview && (
+                <button
+                  onClick={handleConfirmar}
+                  disabled={confirmando}
+                  className="px-3 py-1.5 text-sm rounded-md bg-brand-blue text-white hover:bg-brand-blue-dark disabled:opacity-40"
+                >
+                  {confirmando ? "Gravando..." : "Confirmar Proposta"}
+                </button>
+              )}
+            </div>
           </div>
 
           {!jaGerada && preview && (
-            <div className="mb-4">
+            <div className="mb-4 print:hidden">
               <button
                 type="button"
                 onClick={() => setDescontoAberto((v) => !v)}

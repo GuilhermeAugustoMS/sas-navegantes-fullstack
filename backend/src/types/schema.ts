@@ -7,6 +7,8 @@ export interface ColumnDef {
   enumValues?: string[];
   /** True for the stable, permanent identifier column of the sheet (e.g. ID_ALUNO). */
   isId?: boolean;
+  /** Optional format check for "text" columns, applied only when a value is present (field can still be optional). */
+  format?: "email" | "telefone";
 }
 
 export interface SheetDef {

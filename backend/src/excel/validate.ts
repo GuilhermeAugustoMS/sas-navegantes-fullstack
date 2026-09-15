@@ -48,6 +48,11 @@ export function validateRecord(sheetDef: SheetDef, record: Record_, opts: { isUp
         break;
       case "text":
       default:
+        if (col.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
+          errors.push({ field: col.name, problem: "Email inválido (esperado formato nome@dominio.com)" });
+        } else if (col.format === "telefone" && ![10, 11].includes(String(value).replace(/\D/g, "").length)) {
+          errors.push({ field: col.name, problem: "Telefone inválido (esperado DDD + número, 10 ou 11 dígitos)" });
+        }
         break;
     }
   }

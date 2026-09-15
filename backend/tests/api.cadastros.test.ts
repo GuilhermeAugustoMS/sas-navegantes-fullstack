@@ -75,7 +75,19 @@ describe("API REST de Cadastros", () => {
     expect(res.body.error).toBe("VALIDACAO");
   });
 
-  it("atualiza um registro existente", async () => {
+  it("atualiza um registro existente (com Responsável Financeiro já vinculado)", async () => {
+    // Editar um Aluno exige um Responsável Financeiro ativo vinculado (regra
+    // confirmada em 2026-09-15) -- ver testes dedicados abaixo pra essa regra em si.
+    const responsavel = await request(app)
+      .post("/api/cadastros/responsaveis")
+      .send({ NOME: "Responsável da Laura", ATIVO: true });
+    await request(app).post("/api/cadastros/vinculos-responsavel").send({
+      ID_ALUNO: "ALU_000001",
+      ID_RESPONSAVEL: responsavel.body.ID_RESPONSAVEL,
+      TIPO: "Financeiro",
+      ATIVO: true,
+    });
+
     const res = await request(app).put("/api/cadastros/alunos/ALU_000001").send({ NOME: "Laura Atualizada" });
     expect(res.status).toBe(200);
     expect(res.body.NOME).toBe("Laura Atualizada");

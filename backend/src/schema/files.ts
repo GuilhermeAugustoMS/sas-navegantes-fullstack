@@ -29,8 +29,11 @@ export const CADASTROS: FileDef = {
         { name: "ID_RESPONSAVEL", type: "text", required: true, isId: true },
         { name: "NOME", type: "text", required: true },
         { name: "CPF", type: "text" },
-        { name: "EMAIL", type: "text" },
-        { name: "TELEFONE", type: "text" },
+        // Continuam opcionais (regra confirmada com o usuário em 2026-09-15) --
+        // mas quando preenchidos, precisam ter formato válido. Ver "Responsável
+        // Financeiro obrigatório" no cadastro de Aluno (RecordFormModal.tsx).
+        { name: "EMAIL", type: "text", format: "email" },
+        { name: "TELEFONE", type: "text", format: "telefone" },
         { name: "ATIVO", type: "boolean", required: true },
       ],
     },

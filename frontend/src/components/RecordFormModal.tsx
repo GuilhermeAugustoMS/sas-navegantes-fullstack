@@ -22,8 +22,11 @@ function toDateInputValue(v: unknown): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Sentinela do select de Responsável pra indicar "cadastrar um novo", em vez de escolher um já existente. */
+const NOVO_RESPONSAVEL = "__novo__";
+
 export function RecordFormModal({ resource, record, usuario, onClose, onSaved, initialValues }: Props) {
-  const { getOptions, resourceBySheet } = useCatalog();
+  const { getOptions, resourceBySheet, resourceBySlug } = useCatalog();
   const isEdit = record !== null;
   const editableColumns = resource.colunas.filter((c) => !c.isId);
 
@@ -43,6 +46,27 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
   const [sugestaoSerie, setSugestaoSerie] = useState<{ idade: number; nivel: string | null; opcoes: RecordRow[] } | null>(null);
 
   const ehAlunoComSerie = resource.aba === "Alunos" && editableColumns.some((c) => c.nome === "ID_SERIE");
+  const ehAluno = resource.aba === "Alunos";
+
+  // Responsável Financeiro obrigatório no cadastro de Aluno (regra confirmada
+  // com o usuário em 2026-09-15): pelo menos um Responsável com vínculo ativo
+  // TIPO "Financeiro" (ou "Legal e Financeiro") -- mesma prioridade já usada
+  // no cabeçalho da Proposta (PropostaSimulacaoPanel.tsx). Ao criar, a tela
+  // guia o fluxo sequencial (cria o Aluno, depois vincula o Responsável, sem
+  // garantia atômica -- mesmo padrão do wizard "Fazer Proposta"); ao editar,
+  // o backend recusa a edição sem esse vínculo (alunoResponsavelGuard.routes.ts).
+  const [responsaveis, setResponsaveis] = useState<RecordRow[]>([]);
+  const [vinculoFinanceiroAtual, setVinculoFinanceiroAtual] = useState<RecordRow | null>(null);
+  const [responsavelFinanceiroAtual, setResponsavelFinanceiroAtual] = useState<RecordRow | null>(null);
+  const [idResponsavelEscolhido, setIdResponsavelEscolhido] = useState("");
+  const [novoResponsavelNome, setNovoResponsavelNome] = useState("");
+  const [novoResponsavelTelefone, setNovoResponsavelTelefone] = useState("");
+  const [novoResponsavelEmail, setNovoResponsavelEmail] = useState("");
+  const [responsavelErro, setResponsavelErro] = useState<string | null>(null);
+  /** Guarda o Aluno já criado numa tentativa anterior de submit, quando só o
+   * vínculo do Responsável falhou -- evita criar um Aluno duplicado se a
+   * pessoa corrigir o Responsável e tentar salvar de novo. */
+  const [alunoRecemCriado, setAlunoRecemCriado] = useState<RecordRow | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +130,102 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ehAlunoComSerie, anoLetivoAtivo, values.DATA_NASCIMENTO, fkOptions]);
 
+  useEffect(() => {
+    if (!ehAluno) return;
+    let cancelled = false;
+    async function carregarResponsavel() {
+      const resps = await getOptions("Responsaveis");
+      if (!cancelled) setResponsaveis(resps);
+
+      if (!isEdit || !record) return;
+      const vinculosResource = resourceBySlug.get("vinculos-responsavel");
+      const responsaveisResource = resourceBySlug.get("responsaveis");
+      if (!vinculosResource || !responsaveisResource) return;
+      const idAluno = String(record[resource.idField]);
+      const vinculos = await api.list(vinculosResource, { id_aluno: idAluno, ativo: "true" });
+      const vinculo =
+        vinculos.find((v) => v.TIPO === "Financeiro") ?? vinculos.find((v) => v.TIPO === "Legal e Financeiro") ?? null;
+      if (cancelled) return;
+      setVinculoFinanceiroAtual(vinculo);
+      if (vinculo) {
+        const resp = await api.get(responsaveisResource, String(vinculo.ID_RESPONSAVEL));
+        if (!cancelled) setResponsavelFinanceiroAtual(resp);
+      }
+    }
+    carregarResponsavel();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ehAluno]);
+
+  function responsavelEhValido(): boolean {
+    if (!ehAluno) return true;
+    if (vinculoFinanceiroAtual && idResponsavelEscolhido === "") return true; // já tem, não mudou nada
+    if (idResponsavelEscolhido === NOVO_RESPONSAVEL) return novoResponsavelNome.trim().length > 0;
+    return idResponsavelEscolhido !== "";
+  }
+
+  /** Garante que o Aluno (já existente, com idAluno definido) tenha um vínculo
+   * Financeiro ativo, criando o Responsável novo (se for o caso) e o vínculo
+   * em ResponsaveisFinanceiros. Só mexe em algo se o usuário de fato trocou a
+   * seleção -- se já havia um vínculo e nada mudou, não faz nenhuma chamada. */
+  async function garantirResponsavelFinanceiro(idAluno: string): Promise<boolean> {
+    if (vinculoFinanceiroAtual && idResponsavelEscolhido === "") return true;
+
+    const responsaveisResource = resourceBySlug.get("responsaveis");
+    const vinculosResource = resourceBySlug.get("vinculos-responsavel");
+    if (!responsaveisResource || !vinculosResource) {
+      setResponsavelErro("Catálogo ainda não carregou os recursos de Responsável.");
+      return false;
+    }
+
+    try {
+      let idResponsavel = idResponsavelEscolhido;
+      if (idResponsavelEscolhido === NOVO_RESPONSAVEL) {
+        const criado = await api.create(
+          responsaveisResource,
+          {
+            NOME: novoResponsavelNome.trim(),
+            TELEFONE: novoResponsavelTelefone.trim() || null,
+            EMAIL: novoResponsavelEmail.trim() || null,
+            ATIVO: true,
+          },
+          usuario,
+        );
+        idResponsavel = String(criado.ID_RESPONSAVEL);
+      }
+      if (!idResponsavel) {
+        setResponsavelErro("Selecione ou cadastre um Responsável Financeiro.");
+        return false;
+      }
+
+      if (vinculoFinanceiroAtual && String(vinculoFinanceiroAtual.ID_RESPONSAVEL) !== idResponsavel) {
+        await api.remove(
+          vinculosResource,
+          String(vinculoFinanceiroAtual[vinculosResource.idField]),
+          usuario,
+          "Substituído por novo Responsável Financeiro no cadastro do Aluno",
+        );
+      }
+      if (!vinculoFinanceiroAtual || String(vinculoFinanceiroAtual.ID_RESPONSAVEL) !== idResponsavel) {
+        await api.create(
+          vinculosResource,
+          { ID_ALUNO: idAluno, ID_RESPONSAVEL: idResponsavel, TIPO: "Financeiro", ATIVO: true },
+          usuario,
+        );
+      }
+      return true;
+    } catch (err) {
+      if (err instanceof ApiError && err.body.detalhes?.length) {
+        setResponsavelErro(err.body.detalhes.map((d) => `${d.field}: ${d.problem}`).join("; "));
+      } else {
+        setResponsavelErro(err instanceof Error ? err.message : "Erro ao vincular Responsável Financeiro.");
+      }
+      return false;
+    }
+  }
+
   function setField(name: string, value: unknown) {
     setValues((prev) => ({ ...prev, [name]: value as RecordRow[string] }));
     setFieldErrors((prev) => {
@@ -117,10 +237,16 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setFormError(null);
     setFieldErrors(new Map());
+    setResponsavelErro(null);
 
+    if (ehAluno && !responsavelEhValido()) {
+      setResponsavelErro("Selecione um Responsável Financeiro existente ou informe o nome de um novo antes de salvar.");
+      return;
+    }
+
+    setSaving(true);
     const payload: RecordRow = {};
     for (const col of editableColumns) {
       const raw = values[col.nome];
@@ -128,10 +254,34 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
       else payload[col.nome] = raw as any;
     }
 
+    // Se uma tentativa anterior já criou o Aluno mas falhou só no vínculo do
+    // Responsável, esta tentativa não cria de novo -- edita o mesmo Aluno.
+    const efetivamenteEditando = isEdit || alunoRecemCriado !== null;
+    const idAlvo = efetivamenteEditando ? ((alunoRecemCriado ?? record)![resource.idField] as string) : null;
+
     try {
-      const saved = isEdit
-        ? await api.update(resource, record![resource.idField] as string, payload, usuario)
+      if (efetivamenteEditando && ehAluno) {
+        const ok = await garantirResponsavelFinanceiro(idAlvo!);
+        if (!ok) {
+          setSaving(false);
+          return;
+        }
+      }
+
+      const saved = efetivamenteEditando
+        ? await api.update(resource, idAlvo!, payload, usuario)
         : await api.create(resource, payload, usuario);
+
+      if (!efetivamenteEditando && ehAluno) {
+        const ok = await garantirResponsavelFinanceiro(String(saved[resource.idField]));
+        if (!ok) {
+          // O Aluno já foi criado -- guarda pra não recriar num retry, e
+          // mantém o modal aberto mostrando o erro do vínculo.
+          setAlunoRecemCriado(saved);
+          setSaving(false);
+          return;
+        }
+      }
       onSaved(saved);
     } catch (err) {
       if (err instanceof ApiError && err.body.detalhes) {
@@ -164,6 +314,13 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
           {formError && (
             <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{formError}</p>
+          )}
+
+          {alunoRecemCriado && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              Aluno criado ({String(alunoRecemCriado.ID_ALUNO)}) — falta só vincular o Responsável Financeiro abaixo pra
+              concluir.
+            </p>
           )}
 
           {isEdit && (
@@ -262,6 +419,89 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
               </div>
             );
           })}
+
+          {ehAluno && (
+            <div className="border-t border-slate-100 pt-4">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Responsável Financeiro
+                <span className="text-red-500"> *</span>
+              </label>
+
+              {vinculoFinanceiroAtual && idResponsavelEscolhido === "" ? (
+                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-slate-800 truncate">{String(responsavelFinanceiroAtual?.NOME ?? "—")}</p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {responsavelFinanceiroAtual?.TELEFONE ? String(responsavelFinanceiroAtual.TELEFONE) : "sem telefone"}
+                      {" · "}
+                      {responsavelFinanceiroAtual?.EMAIL ? String(responsavelFinanceiroAtual.EMAIL) : "sem email"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIdResponsavelEscolhido(NOVO_RESPONSAVEL)}
+                    className="text-xs text-brand-blue-dark hover:underline whitespace-nowrap ml-2"
+                  >
+                    Trocar
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={idResponsavelEscolhido}
+                    onChange={(e) => setIdResponsavelEscolhido(e.target.value)}
+                    className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm"
+                  >
+                    <option value="">— selecione —</option>
+                    {responsaveis.map((r) => (
+                      <option key={String(r.ID_RESPONSAVEL)} value={String(r.ID_RESPONSAVEL)}>
+                        {String(r.NOME)}
+                      </option>
+                    ))}
+                    <option value={NOVO_RESPONSAVEL}>+ Cadastrar novo Responsável</option>
+                  </select>
+
+                  {idResponsavelEscolhido === NOVO_RESPONSAVEL && (
+                    <div className="mt-2 space-y-2 bg-slate-50 border border-slate-200 rounded-md p-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Nome <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={novoResponsavelNome}
+                          onChange={(e) => setNovoResponsavelNome(e.target.value)}
+                          className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Telefone</label>
+                        <input
+                          type="tel"
+                          value={novoResponsavelTelefone}
+                          onChange={(e) => setNovoResponsavelTelefone(e.target.value)}
+                          placeholder="(11) 99999-9999"
+                          className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={novoResponsavelEmail}
+                          onChange={(e) => setNovoResponsavelEmail(e.target.value)}
+                          placeholder="nome@exemplo.com"
+                          className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {responsavelErro && <p className="text-xs text-red-600 mt-1">{responsavelErro}</p>}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <button

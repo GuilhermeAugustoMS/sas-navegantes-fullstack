@@ -6,6 +6,7 @@ import { requestContext } from "./middleware/requestContext.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { crudRouter, resourceCatalog } from "./routes/genericCrud.routes.js";
 import { propostaGeneratorRouter } from "./routes/propostaGenerator.routes.js";
+import { alunoResponsavelGuardRouter } from "./routes/alunoResponsavelGuard.routes.js";
 import { CADASTROS_RESOURCES } from "./cadastrosResources.js";
 import { COMERCIAL_RESOURCES } from "./comercialResources.js";
 import { FINANCEIRO_RESOURCES } from "./financeiroResources.js";
@@ -30,6 +31,9 @@ export async function createApp(deps: AppDeps = {}) {
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
   app.get("/api/cadastros/_catalogo", (_req, res) => res.json(resourceCatalog(CADASTROS_RESOURCES, "/api/cadastros")));
+  // Guarda de regra de negócio (Aluno exige Responsável Financeiro pra ser
+  // editado) ANTES do crudRouter genérico, mesmo padrão do propostaGeneratorRouter.
+  app.use("/api/cadastros", alunoResponsavelGuardRouter(repo));
   app.use("/api/cadastros", crudRouter(repo, CADASTROS_RESOURCES));
 
   app.get("/api/comercial/_catalogo", (_req, res) => res.json(resourceCatalog(COMERCIAL_RESOURCES, "/api/comercial")));
