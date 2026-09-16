@@ -13,10 +13,21 @@ import { defineConfig } from "vitest/config";
  * cria um banco Postgres efêmero por arquivo de teste e roda `prisma db push`
  * num subprocesso dentro de beforeAll -- mais lento que o antigo
  * fs.mkdtempSync, principalmente na primeira chamada de cada execução.
+ *
+ * fileParallelism: false (2026-09-16, achado ao validar a migração pra
+ * Postgres): por padrão o vitest roda arquivos de teste em paralelo: cada
+ * um dos 3 arquivos que usam createTestDatabase() dispara seu próprio
+ * `npx prisma db push` em subprocesso ao mesmo tempo, e no Windows isso
+ * competiu por CPU/IO a ponto de estourar o hookTimeout de 30s (visto na
+ * prática: rodando em paralelo, 3 suítes falharam por timeout; rodando
+ * sequencial, as mesmas 77 passaram em tempo total praticamente igual --
+ * então desativar paralelismo não deixa a suíte mais lenta, só mais
+ * confiável).
  */
 export default defineConfig({
   test: {
     testTimeout: 15000,
     hookTimeout: 30000,
+    fileParallelism: false,
   },
 });
