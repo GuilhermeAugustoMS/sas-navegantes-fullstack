@@ -137,42 +137,59 @@ Decisões tomadas com o usuário para a troca de Excel para Postgres (Seção
   `AppDeps.repo` aceita qualquer `Repository`, usado pelos testes pra
   injetar um `PostgresRepository` apontando pra um banco efêmero, mas
   `createApp()` sem argumento sempre usa Postgres.
-- **Testes automatizados exigem um Postgres rodando** (`docker compose up -d`
-  na raiz do projeto). Cada arquivo de teste de API cria seu próprio banco
-  efêmero (`tests/setup/testDatabase.ts`, equivalente ao antigo
-  `fs.mkdtempSync` do Excel) via `prisma db push`, e derruba no `afterAll`.
-  `repository.test.ts` continua testando `ExcelRepository` diretamente (não
-  precisa de Postgres) -- é o único teste que ainda usa Excel de propósito.
+- **Testes automatizados usam um Postgres local via Docker** (`docker
+  compose up -d` na raiz do projeto) -- **não** o banco de dados reais. Cada
+  arquivo de teste de API cria seu próprio banco efêmero
+  (`tests/setup/testDatabase.ts`, equivalente ao antigo `fs.mkdtempSync` do
+  Excel) via `prisma db push`, e derruba no `afterAll`. `repository.test.ts`
+  continua testando `ExcelRepository` diretamente (não precisa de Postgres)
+  -- é o único teste que ainda usa Excel de propósito.
+- **Dados reais migrados para Neon (Postgres gerenciado) em 2026-09-16** --
+  o projeto é trabalhado em 2 computadores (ver "Rotina de sincronização"
+  acima) e um Postgres só local não sincronizaria os dados reais entre eles.
+  `backend/.env` (não versionado) tem a `DATABASE_URL` apontando para o
+  projeto Neon "Saas Navegantes", branch `production`, com pooler
+  (`sslmode=require&channel_binding=require`) -- é esse banco que
+  `npm run dev`/`npm run seed:precos`/`npm run migrate:postgres` usam por
+  padrão, tanto em dev quanto em produção; não há mais um Postgres "local
+  de dados reais". O Postgres do `docker-compose.yml` continua existindo,
+  mas só para os bancos efêmeros da suíte de testes -- nunca para dados
+  reais.
 
 ## Como rodar localmente
 
 ```
-docker compose up -d                          # sobe o Postgres local (porta 5432)
 cd backend && npm install
-npx prisma migrate dev                        # cria/atualiza as tabelas
-npm run dev                                    # http://localhost:3333
-cd frontend && npm install && npm run dev      # http://localhost:5173
+npx prisma migrate deploy                      # aplica migrations pendentes no Neon (dados reais)
+npm run dev                                     # http://localhost:3333
+cd frontend && npm install && npm run dev       # http://localhost:5173
 ```
 
-`docker-compose.yml` (raiz do projeto) define um Postgres 16 com usuário
-`sas`/senha `sas_dev_local_only`/banco `sas_navegantes` -- só para dev local,
-sem exposição externa. `backend/.env` (não versionado) tem a `DATABASE_URL`
-correspondente.
+`backend/.env` (não versionado, pedir o valor a quem já tem -- não está no
+git) tem a `DATABASE_URL` do Neon (projeto "Saas Navegantes", branch
+`production`) -- o mesmo banco usado pelas duas máquinas onde o projeto é
+trabalhado. Por isso, em dev/produção usar sempre `prisma migrate deploy`
+(só aplica migrations pendentes) -- **nunca `prisma migrate dev`** contra
+essa `DATABASE_URL` (gera/reseta migration a partir de drift, arriscado
+num banco compartilhado com dados reais).
 
 Se `npm install` do backend bloquear o script de instalação do `esbuild`:
 `npm approve-scripts esbuild` e rode `npm install` de novo.
 
-Testes do backend: `cd backend && npx vitest run` (exige o Postgres do
-`docker compose up -d` rodando). `npx tsc -p . --noEmit` deve ficar limpo no
-backend.
+`npx tsc -p . --noEmit` deve ficar limpo no backend.
+
+Testes do backend usam Postgres **local**, não o Neon: `docker compose up
+-d` na raiz do projeto (sobe o Postgres local, porta 5432, só para os
+bancos efêmeros de teste) e depois `cd backend && npx vitest run`.
 
 Migração dos dados reais dos `.xlsx` (`backend/data/`) para o Postgres já
-configurado em `DATABASE_URL` (idempotente, não apaga os `.xlsx` originais):
-`cd backend && npm run migrate:postgres`.
+configurado em `DATABASE_URL` (idempotente, não apaga os `.xlsx`
+originais -- roda contra o Neon por padrão agora): `cd backend && npm run
+migrate:postgres`.
 
 Seed de preços (idempotente, semeia Ano Letivo 2026 + Séries + Tabela de
 Preços + Programas Extras a partir da planilha real do usuário "Excel
-mensalidades Navegantes.xlsx", agora gravando no Postgres): `cd backend &&
+mensalidades Navegantes.xlsx", agora gravando no Neon): `cd backend &&
 npm run seed:precos`. **Só rodar contra o banco de produção com confirmação
 explícita do usuário.**
 
@@ -243,8 +260,11 @@ explícita do usuário.**
 - Duas telas cobrem fluxos parecidos de proposta hoje: `FazerPropostaPage.tsx`
   (wizard de criação) e `PropostaGeneratorPage.tsx` (gerenciar proposta já
   existente). Ainda não há uma decisão registrada sobre unificar as duas.
-- Confirmar se `npm run seed:precos` já rodou com sucesso contra o banco de
-  produção depois da migração (Seção 57, 2026-09-16).
+- **Resolvido em 2026-09-16**: dados reais migrados para o Neon
+  (`npx prisma migrate deploy` + `npm run migrate:postgres`, 502/502
+  registros, 0 inválidos) -- ver "Persistência" acima. `seed:precos` já
+  tinha rodado contra dados reais antes dessa migração (a `TabelaPrecos`
+  já veio populada, 64 registros).
 - `node_modules` pode ter problemas de instalação em pastas sincronizadas
   por rede/nuvem (OneDrive, unidades de rede) — se `npm run dev` falhar com
   erros de binário nativo (esbuild, etc.), rodar
