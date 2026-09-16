@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { ExcelRepository } from "../../excel/ExcelRepository.js";
+import type { Repository } from "../../repository/Repository.js";
 import { CADASTROS, COMERCIAL, FINANCEIRO } from "../../schema/files.js";
 import { gerarParcelas, type ProgramaExtraValor } from "../../calc/propostaEngine.js";
 import { BusinessRuleError } from "../../services/CrudService.js";
@@ -18,7 +18,7 @@ function paramId(req: Request): string {
   return Array.isArray(v) ? v[0] : v;
 }
 
-export function propostaGeneratorRouter(repo: ExcelRepository): Router {
+export function propostaGeneratorRouter(repo: Repository): Router {
   const router = Router();
 
   router.post("/propostas/:id/parcelas", async (req: Request, res: Response, next: NextFunction) => {

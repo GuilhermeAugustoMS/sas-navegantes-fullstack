@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
-import { ExcelRepository } from "../excel/ExcelRepository.js";
-import { ALL_FILES } from "../schema/files.js";
+import type { Repository } from "../repository/Repository.js";
+import { PostgresRepository } from "../repository/PostgresRepository.js";
+import { getPrismaClient } from "../repository/prismaClient.js";
 import { requestContext } from "./middleware/requestContext.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { crudRouter, resourceCatalog } from "./routes/genericCrud.routes.js";
@@ -12,16 +13,14 @@ import { COMERCIAL_RESOURCES } from "./comercialResources.js";
 import { FINANCEIRO_RESOURCES } from "./financeiroResources.js";
 
 export interface AppDeps {
-  repo?: ExcelRepository;
+  repo?: Repository;
 }
 
 export async function createApp(deps: AppDeps = {}) {
-  const repo = deps.repo ?? new ExcelRepository();
-
-  // Garante que os 7 arquivos existem antes de aceitar requisições (idempotente).
-  for (const fileDef of ALL_FILES) {
-    await repo.ensureFile(fileDef);
-  }
+  // Seção 57: Postgres é a persistência real (via Prisma) desde 2026-09-16.
+  // ExcelRepository continua no código só como base para uma futura
+  // exportação (Seção 35), sem uso em produção -- ver repository/Repository.ts.
+  const repo = deps.repo ?? new PostgresRepository(getPrismaClient());
 
   const app = express();
   app.use(cors());

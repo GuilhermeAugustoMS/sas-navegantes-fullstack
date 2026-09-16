@@ -1,22 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import request from "supertest";
-
-const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sas-data-api-comercial-"));
-process.env.SAS_DATA_ROOT = tmpRoot;
+import { createTestDatabase, type TestDatabase } from "./setup/testDatabase.js";
+import { PostgresRepository } from "../src/repository/PostgresRepository.js";
 
 const { createApp } = await import("../src/api/app.js");
 
+let db: TestDatabase;
 let app: Awaited<ReturnType<typeof createApp>>;
 
 beforeAll(async () => {
-  app = await createApp();
+  db = await createTestDatabase();
+  app = await createApp({ repo: new PostgresRepository(db.prisma) });
 });
 
-afterAll(() => {
-  fs.rmSync(tmpRoot, { recursive: true, force: true });
+afterAll(async () => {
+  await db.close();
 });
 
 describe("API REST de Comercial", () => {
@@ -86,6 +84,6 @@ describe("API REST de Comercial", () => {
     const id = list.body[0].ID_NEGOCIACAO;
 
     const res = await request(app).delete(`/api/comercial/negociacoes/${id}`);
-    expect(res.status).toBe(500); // ExcelRepository.softDelete lança erro explícito (aba sem coluna ATIVO)
+    expect(res.status).toBe(500); // Repository.softDelete lança erro explícito (aba sem coluna ATIVO)
   });
 });

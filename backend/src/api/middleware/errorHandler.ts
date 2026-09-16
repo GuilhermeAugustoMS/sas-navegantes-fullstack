@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { ValidationFailedError, RecordNotFoundError } from "../../excel/ExcelRepository.js";
+import { ValidationFailedError, RecordNotFoundError } from "../../repository/Repository.js";
 import { BusinessRuleError } from "../../services/CrudService.js";
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {

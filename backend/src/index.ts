@@ -1,8 +1,9 @@
-export { ExcelRepository, ValidationFailedError, RecordNotFoundError } from "./excel/ExcelRepository.js";
-export type { RepoContext } from "./excel/ExcelRepository.js";
+export { ExcelRepository } from "./excel/ExcelRepository.js";
+export { PostgresRepository } from "./repository/PostgresRepository.js";
+export { ValidationFailedError, RecordNotFoundError } from "./repository/Repository.js";
+export type { Repository, RepoContext } from "./repository/Repository.js";
 export { ALL_FILES, CADASTROS, FINANCEIRO, ORCAMENTO, COMERCIAL, PLANEJAMENTO, CONFIGURACOES, AUDITORIA } from "./schema/files.js";
 export * from "./types/schema.js";
-export { backupFile, restoreFile, listBackups, latestBackup } from "./excel/backup.js";
 export { createApp } from "./api/app.js";
 export { CADASTROS_RESOURCES } from "./api/cadastrosResources.js";
 export { COMERCIAL_RESOURCES } from "./api/comercialResources.js";

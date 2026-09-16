@@ -1,17 +1,21 @@
-# Sas Navegantes — SaaS de Gestão Escolar (Excel como banco de dados)
+# Sas Navegantes — SaaS de Gestão Escolar (Postgres + Prisma)
 
 Este arquivo dá contexto de continuidade para qualquer sessão do Codex
 que abrir esta pasta. Leia isto antes de mexer no código.
 
 ## O que é este projeto
 
-SaaS de gestão orçamentária/financeira/comercial/operacional para escolas,
-usando arquivos `.xlsx` como camada de persistência (não há banco relacional
-nesta primeira versão — decisão arquitetural deliberada do usuário). O
-prompt mestre completo (regras de negócio, estrutura de dados, fases do
-projeto) está guardado no Projeto "Sas Navegantes" do Codex — se você tiver
-acesso a ele, leia antes de qualquer mudança estrutural. Resumo das regras
-mais importantes:
+SaaS de gestão orçamentária/financeira/comercial/operacional para escolas.
+Até 2026-09-16, a persistência era só arquivos `.xlsx` (decisão original,
+Seção 2 do prompt mestre); a Seção 57 do mesmo prompt mestre já previa essa
+troca por um banco de verdade via uma camada de repositório, sem reescrever
+a aplicação — feita em 2026-09-16, antes de começar qualquer fase de negócio
+nova (Orçamento/Planejamento/Dashboards), pra não migrar duas vezes. Ver
+"Persistência: Postgres via Prisma (desde 2026-09-16)" mais abaixo para os
+detalhes técnicos e as decisões tomadas. O prompt mestre completo (regras de
+negócio, estrutura de dados, fases do projeto) está guardado no Projeto "Sas
+Navegantes" do Codex — se você tiver acesso a ele, leia antes de qualquer
+mudança estrutural. Resumo das regras mais importantes:
 
 - **Nunca inventar** valores, fórmulas, regras, campos, categorias, preços,
   percentuais etc. Se uma planilha ou pedido for ambíguo: parar, explicar a
@@ -69,25 +73,108 @@ máquina exigiu reinstalar dependências e resolver `node_modules` órfão).
 ```
 Frontend (React + TS + Vite + Tailwind, porta 5173)
   -> Backend (Node + TS + Express REST, porta 3333)
-      -> ExcelRepository (única camada que toca .xlsx: lock, backup,
-         escrita atômica, auditoria)
-          -> backend/data/*.xlsx (01_CADASTROS, 02_FINANCEIRO,
-             03_ORCAMENTO, 04_COMERCIAL, 05_PLANEJAMENTO,
-             06_CONFIGURACOES, 07_AUDITORIA)
+      -> Repository (backend/src/repository/Repository.ts, interface única)
+          -> PostgresRepository (produção/dev, via Prisma) -> Postgres
+             (schemas: cadastros, financeiro, orcamento, comercial,
+             planejamento, configuracoes, auditoria -- 1 por módulo,
+             espelhando os antigos 7 arquivos .xlsx)
+          -> ExcelRepository (legado, sem uso em produção -- mantido como
+             base para uma futura exportação/importação Excel, Seção 35)
 ```
 
 Padrão genérico de CRUD: cada módulo (Cadastros, Comercial, Financeiro) é
 uma lista `ResourceDef[]` (`backend/src/api/*Resources.ts`), cada uma
-apontando para um `FileDef`/aba (`backend/src/schema/files.ts`). O
+apontando para um `FileDef`/aba (`backend/src/schema/files.ts` -- continua
+sendo o vocabulário usado em toda a aplicação, mesmo agora que os dados
+vivem no Postgres: "arquivo" = schema Postgres, "aba" = tabela). O
 `crudRouter`/`CrudService` genéricos montam as rotas REST e validam FKs
-(inclusive entre arquivos diferentes, via `ForeignKey.targetFile`). O
-catálogo (`/_catalogo` de cada módulo) expõe o schema para o frontend se
-montar sozinho (tabela + formulário) sem hardcode de tela por recurso.
+(inclusive entre "arquivos"/schemas diferentes, via `ForeignKey.targetFile`)
+-- essa validação continua 100% na aplicação, não existe FK real no banco
+(ver "Persistência" abaixo). O catálogo (`/_catalogo` de cada módulo) expõe
+o schema para o frontend se montar sozinho (tabela + formulário) sem
+hardcode de tela por recurso.
 
 Frontend: `MODULES` em `frontend/src/api/client.ts` lista os módulos;
 `CatalogContext` agrega os catálogos; `Sidebar`/`CrudPage`/`DataTable`/
 `RecordFormModal` são genéricos e funcionam para qualquer módulo novo que
-seguir o mesmo padrão.
+seguir o mesmo padrão. Nada mudou no frontend com a troca de persistência --
+os contratos REST são os mesmos.
+
+## Persistência: Postgres via Prisma (desde 2026-09-16)
+
+Decisões tomadas com o usuário para a troca de Excel para Postgres (Seção
+57), documentadas aqui para não precisar reconfirmar em sessões futuras:
+
+- **ORM**: Prisma. Schema único em `backend/prisma/schema.prisma`, um
+  modelo Prisma por aba original, `@@schema("...")` marcando o módulo
+  (multi-schema do Postgres). 4 modelos (`Configuracoes*`) têm prefixo no
+  nome porque colidiam com tabelas ativas de outro módulo -- ver comentário
+  no topo do arquivo.
+- **IDs**: continuam strings com prefixo geradas pela aplicação
+  (`ALU_000001` etc., `backend/src/util/ids.ts`) -- não serial/UUID nativo.
+  Como isso não é mais serializado por lock de arquivo, uma colisão rara de
+  concorrência é pega pela constraint de unicidade da PK do Postgres, e
+  `PostgresRepository.insert` tenta de novo uma vez com novo ID.
+- **Sem FK real no banco**: nenhum `@relation` no schema Prisma. A
+  integridade referencial (inclusive checar que o alvo está `ATIVO`)
+  continua 100% em `CrudService.checkForeignKeys`, inalterado -- uma FK real
+  do Postgres não expressaria essa regra.
+- **Enums viram TEXT**, não enum nativo do Postgres -- mais fácil de
+  estender a lista de valores permitidos no futuro.
+- **Valores numéricos** (`type: "number"` no schema) viram
+  `Decimal @db.Decimal(12,2)` no Postgres -- mais seguro que float para
+  dinheiro. `PostgresRepository`/`repository/mapping.ts` sempre convertem
+  para `number` puro antes de devolver pro resto da aplicação (nunca vaza
+  `Decimal` do Prisma pra fora da camada de repositório).
+- **`excel/lock.ts` e `excel/backup.ts` foram removidos** (Postgres trata
+  concorrência via transação; backup é responsabilidade do provedor
+  gerenciado escolhido na hora do deploy). `ExcelRepository` foi simplificado
+  de acordo (sem lock/backup automático), mas continua funcional para
+  ler/escrever `.xlsx` -- só não é mais chamado por nenhuma rota real.
+  `recovery.test.ts` foi removido (testava exatamente essas duas
+  funcionalidades removidas).
+- **Sem alternância em runtime** entre Excel e Postgres (corte definitivo) --
+  `AppDeps.repo` aceita qualquer `Repository`, usado pelos testes pra
+  injetar um `PostgresRepository` apontando pra um banco efêmero, mas
+  `createApp()` sem argumento sempre usa Postgres.
+- **Testes automatizados exigem um Postgres rodando** (`docker compose up -d`
+  na raiz do projeto). Cada arquivo de teste de API cria seu próprio banco
+  efêmero (`tests/setup/testDatabase.ts`, equivalente ao antigo
+  `fs.mkdtempSync` do Excel) via `prisma db push`, e derruba no `afterAll`.
+  `repository.test.ts` continua testando `ExcelRepository` diretamente (não
+  precisa de Postgres) -- é o único teste que ainda usa Excel de propósito.
+
+## Como rodar localmente
+
+```
+docker compose up -d                          # sobe o Postgres local (porta 5432)
+cd backend && npm install
+npx prisma migrate dev                        # cria/atualiza as tabelas
+npm run dev                                    # http://localhost:3333
+cd frontend && npm install && npm run dev      # http://localhost:5173
+```
+
+`docker-compose.yml` (raiz do projeto) define um Postgres 16 com usuário
+`sas`/senha `sas_dev_local_only`/banco `sas_navegantes` -- só para dev local,
+sem exposição externa. `backend/.env` (não versionado) tem a `DATABASE_URL`
+correspondente.
+
+Se `npm install` do backend bloquear o script de instalação do `esbuild`:
+`npm approve-scripts esbuild` e rode `npm install` de novo.
+
+Testes do backend: `cd backend && npx vitest run` (exige o Postgres do
+`docker compose up -d` rodando). `npx tsc -p . --noEmit` deve ficar limpo no
+backend.
+
+Migração dos dados reais dos `.xlsx` (`backend/data/`) para o Postgres já
+configurado em `DATABASE_URL` (idempotente, não apaga os `.xlsx` originais):
+`cd backend && npm run migrate:postgres`.
+
+Seed de preços (idempotente, semeia Ano Letivo 2026 + Séries + Tabela de
+Preços + Programas Extras a partir da planilha real do usuário "Excel
+mensalidades Navegantes.xlsx", agora gravando no Postgres): `cd backend &&
+npm run seed:precos`. **Só rodar contra o banco de produção com confirmação
+explícita do usuário.**
 
 ## O que já existe (módulos)
 
@@ -135,30 +222,13 @@ seguir o mesmo padrão.
   24), Dashboards (Seção 30-32), Auditoria com tela própria (hoje só grava
   em `07_AUDITORIA.xlsx`, sem UI), Autenticação real (Fase 2 — hoje
   "usuário" é só um campo de texto usado na auditoria, sem controle de
-  acesso), Multi-tenant (Seção 41 — arquitetura já suporta trocar
-  `SAS_DATA_ROOT` por tenant, mas roteamento por tenant autenticado não
-  existe), Importação das planilhas legadas (Fase 9).
+  acesso), Multi-tenant (Seção 41 — antes da Seção 57 a arquitetura suportava
+  trocar `SAS_DATA_ROOT` por tenant; com Postgres, a estratégia equivalente
+  ainda não foi decidida -- banco por tenant vs. schema por tenant vs. coluna
+  de tenant -- e roteamento por tenant autenticado também não existe),
+  Importação das planilhas legadas (Fase 9).
 
-## Como rodar localmente
-
-```
-cd backend && npm install && npm run dev     # http://localhost:3333
-cd frontend && npm install && npm run dev    # http://localhost:5173
-```
-
-Se `npm install` do backend bloquear o script de instalação do `esbuild`:
-`npm approve-scripts esbuild` e rode `npm install` de novo.
-
-Testes do backend: `cd backend && npx vitest run` (49 testes, todos devem
-passar). `npx tsc -p . --noEmit` deve ficar limpo no backend.
-
-Seed de preços (idempotente, semeia Ano Letivo 2026 + 13 Séries + Tabela de
-Preços + Programas Extras a partir da planilha real do usuário "Excel
-mensalidades Navegantes.xlsx"): `cd backend && npm run seed:precos`. **Só
-rodar contra a pasta de dados real (`backend/data/`) com confirmação
-explícita do usuário** — grava dados de produção.
-
-## Pendências conhecidas (na última atualização — 2026-09-07)
+## Pendências conhecidas (na última atualização — 2026-09-16)
 
 - **Corrigido em 2026-09-07**: o erro de tipos em `RecordFormModal.tsx`
   (`{ ...emptyRecordFor(...), ...initialValues }` podia carregar `undefined`)
@@ -173,8 +243,8 @@ explícita do usuário** — grava dados de produção.
 - Duas telas cobrem fluxos parecidos de proposta hoje: `FazerPropostaPage.tsx`
   (wizard de criação) e `PropostaGeneratorPage.tsx` (gerenciar proposta já
   existente). Ainda não há uma decisão registrada sobre unificar as duas.
-- Confirmar se `npm run seed:precos` já rodou com sucesso contra os dados
-  reais do usuário.
+- Confirmar se `npm run seed:precos` já rodou com sucesso contra o banco de
+  produção depois da migração (Seção 57, 2026-09-16).
 - `node_modules` pode ter problemas de instalação em pastas sincronizadas
   por rede/nuvem (OneDrive, unidades de rede) — se `npm run dev` falhar com
   erros de binário nativo (esbuild, etc.), rodar
@@ -183,7 +253,10 @@ explícita do usuário** — grava dados de produção.
   remota/rede).
 - Autenticação real, Multi-tenant, módulos Planejamento/Orçamento/
   Dashboards, importação das planilhas legadas — todos pendentes, sem
-  código ainda.
+  código ainda. As tabelas Postgres de Orçamento/Planejamento/Configurações
+  já existem (Seção 57 migrou o schema inteiro de uma vez), mas seguem sem
+  nenhuma rota/ResourceDef montada -- só ficam prontas para quando essas
+  fases forem implementadas.
 - Colunas ambíguas de "Hora"/"Fração" do programa Estendido (planilha real
   do usuário) não foram semeadas — se forem necessárias, pedir confirmação
   explícita do usuário sobre o que significam antes de implementar
@@ -205,10 +278,11 @@ explícita do usuário** — grava dados de produção.
 - **Sempre commitar no git** depois de qualquer mudança de código — já
   houve uma perda real de trabalho por depender só de uma sessão de nuvem
   efêmera sem persistência em git.
-- Ao adicionar uma aba nova ao schema (`backend/src/schema/files.ts`), o
-  `ExcelRepository.ensureFile` já cuida de acrescentá-la a um arquivo
-  `.xlsx` existente sem perder dados — mas ainda assim, teste contra uma
-  cópia/pasta temporária antes de rodar contra dados reais.
+- Ao adicionar uma aba/coluna nova ao schema (`backend/src/schema/files.ts`),
+  espelhe a mudança em `backend/prisma/schema.prisma` e rode
+  `npx prisma migrate dev` -- desde a Seção 57 (2026-09-16), é isso que cria
+  a tabela/coluna real no Postgres, não mais `ExcelRepository.ensureFile`
+  (que hoje só serve pro Excel legado, sem uso em produção).
 - Testes automatizados (`npx vitest run`) e `tsc --noEmit` devem ficar
   limpos antes de considerar qualquer mudança pronta. Idealmente, some um
   smoke test real de navegador (Playwright) para fluxos novos importantes —

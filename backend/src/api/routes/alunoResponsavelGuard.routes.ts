@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { ExcelRepository } from "../../excel/ExcelRepository.js";
+import type { Repository } from "../../repository/Repository.js";
 import { CADASTROS } from "../../schema/files.js";
 import { BusinessRuleError } from "../../services/CrudService.js";
 
@@ -22,7 +22,7 @@ function paramId(req: Request): string {
  * padrão do propostaGeneratorRouter): intercepta só PUT /alunos/:id e deixa
  * passar pro CRUD genérico (via next()) quando a regra já está satisfeita.
  */
-export function alunoResponsavelGuardRouter(repo: ExcelRepository): Router {
+export function alunoResponsavelGuardRouter(repo: Repository): Router {
   const router = Router();
 
   router.put("/alunos/:id", async (req: Request, _res: Response, next: NextFunction) => {

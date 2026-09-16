@@ -16,8 +16,9 @@
  * ambígua (colunas de Estendido sem cabeçalho claro para "Hora"/"Fração"),
  * NÃO foram semeados -- só Dia/Mês, que tinham cabeçalho claro.
  */
-import { ExcelRepository } from "./excel/ExcelRepository.js";
-import { ALL_FILES, CADASTROS, FINANCEIRO } from "./schema/files.js";
+import { PostgresRepository } from "./repository/PostgresRepository.js";
+import { getPrismaClient } from "./repository/prismaClient.js";
+import { CADASTROS, FINANCEIRO } from "./schema/files.js";
 
 const USUARIO = "seed-precos";
 const ANO_LETIVO = 2026;
@@ -48,10 +49,8 @@ const PROGRAMAS_EXTRAS: { nome: "Integral" | "Semi-Integral" | "Estendido"; valo
 ];
 
 async function main() {
-  const repo = new ExcelRepository();
-  for (const fileDef of ALL_FILES) {
-    await repo.ensureFile(fileDef);
-  }
+  const prisma = getPrismaClient();
+  const repo = new PostgresRepository(prisma);
 
   const anosExistentes = await repo.readAll(CADASTROS, "AnosLetivos");
   let anoLetivo = anosExistentes.find((a) => Number(a.ANO) === ANO_LETIVO);
@@ -120,6 +119,7 @@ async function main() {
   }
 
   console.log("\nSemeadura concluída.");
+  await prisma.$disconnect();
 }
 
 main().catch((err) => {

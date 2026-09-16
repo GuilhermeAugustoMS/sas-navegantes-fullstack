@@ -1,0 +1,699 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "auditoria";
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "cadastros";
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "comercial";
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "configuracoes";
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "financeiro";
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "orcamento";
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "planejamento";
+
+-- CreateTable
+CREATE TABLE "cadastros"."Alunos" (
+    "ID_ALUNO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "DATA_NASCIMENTO" TIMESTAMP(3) NOT NULL,
+    "GENERO" TEXT,
+    "ID_SERIE" TEXT,
+    "ID_TURMA" TEXT,
+    "ID_TURNO" TEXT,
+    "NECESSIDADE_ALIMENTACAO" BOOLEAN,
+    "HORARIO_ESPECIAL" TEXT,
+    "DATA_CADASTRO" TIMESTAMP(3) NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Alunos_pkey" PRIMARY KEY ("ID_ALUNO")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Responsaveis" (
+    "ID_RESPONSAVEL" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "CPF" TEXT,
+    "EMAIL" TEXT,
+    "TELEFONE" TEXT,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Responsaveis_pkey" PRIMARY KEY ("ID_RESPONSAVEL")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."ResponsaveisFinanceiros" (
+    "ID_ALUNO_RESPONSAVEL" TEXT NOT NULL,
+    "ID_ALUNO" TEXT NOT NULL,
+    "ID_RESPONSAVEL" TEXT NOT NULL,
+    "TIPO" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "ResponsaveisFinanceiros_pkey" PRIMARY KEY ("ID_ALUNO_RESPONSAVEL")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."AnosLetivos" (
+    "ID_ANO_LETIVO" TEXT NOT NULL,
+    "ANO" DECIMAL(12,2) NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "AnosLetivos_pkey" PRIMARY KEY ("ID_ANO_LETIVO")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Series" (
+    "ID_SERIE" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "NIVEL_ENSINO" TEXT,
+    "ID_ANO_LETIVO" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Series_pkey" PRIMARY KEY ("ID_SERIE")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Turmas" (
+    "ID_TURMA" TEXT NOT NULL,
+    "ID_SERIE" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ID_TURNO" TEXT,
+    "ID_SALA" TEXT,
+    "CAPACIDADE_MAXIMA" DECIMAL(12,2) NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Turmas_pkey" PRIMARY KEY ("ID_TURMA")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Salas" (
+    "ID_SALA" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "CAPACIDADE" DECIMAL(12,2) NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Salas_pkey" PRIMARY KEY ("ID_SALA")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Turnos" (
+    "ID_TURNO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Turnos_pkey" PRIMARY KEY ("ID_TURNO")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Modalidades" (
+    "ID_MODALIDADE" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Modalidades_pkey" PRIMARY KEY ("ID_MODALIDADE")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Funcionarios" (
+    "ID_FUNCIONARIO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ID_CARGO" TEXT NOT NULL,
+    "ID_EQUIPE" TEXT,
+    "SALARIO_BRUTO" DECIMAL(12,2),
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Funcionarios_pkey" PRIMARY KEY ("ID_FUNCIONARIO")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Cargos" (
+    "ID_CARGO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Cargos_pkey" PRIMARY KEY ("ID_CARGO")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."Equipes" (
+    "ID_EQUIPE" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Equipes_pkey" PRIMARY KEY ("ID_EQUIPE")
+);
+
+-- CreateTable
+CREATE TABLE "cadastros"."CentrosCusto" (
+    "ID_CENTRO_CUSTO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "CentrosCusto_pkey" PRIMARY KEY ("ID_CENTRO_CUSTO")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."Receitas" (
+    "ID_LANCAMENTO" TEXT NOT NULL,
+    "ID_ALUNO" TEXT,
+    "ID_RESPONSAVEL" TEXT,
+    "TIPO" TEXT NOT NULL,
+    "CATEGORIA" TEXT,
+    "COMPETENCIA" TEXT NOT NULL,
+    "VENCIMENTO" TIMESTAMP(3),
+    "VALOR" DECIMAL(12,2) NOT NULL,
+    "STATUS" TEXT NOT NULL,
+    "FORMA_PAGAMENTO" TEXT,
+    "OBSERVACAO" TEXT,
+
+    CONSTRAINT "Receitas_pkey" PRIMARY KEY ("ID_LANCAMENTO")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."Despesas" (
+    "ID_LANCAMENTO" TEXT NOT NULL,
+    "ID_CENTRO_CUSTO" TEXT,
+    "TIPO" TEXT NOT NULL,
+    "CATEGORIA" TEXT,
+    "COMPETENCIA" TEXT NOT NULL,
+    "VENCIMENTO" TIMESTAMP(3),
+    "VALOR" DECIMAL(12,2) NOT NULL,
+    "STATUS" TEXT NOT NULL,
+    "FORMA_PAGAMENTO" TEXT,
+    "OBSERVACAO" TEXT,
+
+    CONSTRAINT "Despesas_pkey" PRIMARY KEY ("ID_LANCAMENTO")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."ContasPagar" (
+    "ID_CONTA_PAGAR" TEXT NOT NULL,
+    "ID_LANCAMENTO" TEXT NOT NULL,
+    "VENCIMENTO" TIMESTAMP(3) NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+    "STATUS" TEXT NOT NULL,
+
+    CONSTRAINT "ContasPagar_pkey" PRIMARY KEY ("ID_CONTA_PAGAR")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."ContasReceber" (
+    "ID_CONTA_RECEBER" TEXT NOT NULL,
+    "ID_LANCAMENTO" TEXT NOT NULL,
+    "VENCIMENTO" TIMESTAMP(3) NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+    "STATUS" TEXT NOT NULL,
+
+    CONSTRAINT "ContasReceber_pkey" PRIMARY KEY ("ID_CONTA_RECEBER")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."FormasPagamento" (
+    "ID_FORMA_PAGAMENTO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "QTD_PARCELAS" DECIMAL(12,2),
+    "MULTIPLICADOR_AJUSTE" DECIMAL(12,2),
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "FormasPagamento_pkey" PRIMARY KEY ("ID_FORMA_PAGAMENTO")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."TiposReceita" (
+    "ID_TIPO_RECEITA" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "TiposReceita_pkey" PRIMARY KEY ("ID_TIPO_RECEITA")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."TiposDespesa" (
+    "ID_TIPO_DESPESA" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "TiposDespesa_pkey" PRIMARY KEY ("ID_TIPO_DESPESA")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."Movimentacoes" (
+    "ID_MOVIMENTACAO" TEXT NOT NULL,
+    "ID_LANCAMENTO" TEXT NOT NULL,
+    "DATA" TIMESTAMP(3) NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+    "TIPO" TEXT NOT NULL,
+
+    CONSTRAINT "Movimentacoes_pkey" PRIMARY KEY ("ID_MOVIMENTACAO")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."TabelaPrecos" (
+    "ID_TABELA_PRECO" TEXT NOT NULL,
+    "ID_SERIE" TEXT NOT NULL,
+    "MENSALIDADE" DECIMAL(12,2) NOT NULL,
+    "MATERIAL_DIDATICO" DECIMAL(12,2) NOT NULL,
+    "MATERIAL_DIDATICO_INGLES" DECIMAL(12,2) NOT NULL,
+    "ALIMENTACAO" DECIMAL(12,2) NOT NULL,
+    "DATA_VIGENCIA" TIMESTAMP(3) NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "TabelaPrecos_pkey" PRIMARY KEY ("ID_TABELA_PRECO")
+);
+
+-- CreateTable
+CREATE TABLE "financeiro"."ProgramasExtras" (
+    "ID_PROGRAMA_EXTRA" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "VALOR_DIA" DECIMAL(12,2),
+    "VALOR_MES" DECIMAL(12,2) NOT NULL,
+    "DATA_VIGENCIA" TIMESTAMP(3) NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "ProgramasExtras_pkey" PRIMARY KEY ("ID_PROGRAMA_EXTRA")
+);
+
+-- CreateTable
+CREATE TABLE "orcamento"."Orcamentos" (
+    "ID_ORCAMENTO" TEXT NOT NULL,
+    "ID_ANO_LETIVO" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Orcamentos_pkey" PRIMARY KEY ("ID_ORCAMENTO")
+);
+
+-- CreateTable
+CREATE TABLE "orcamento"."ItensOrcamento" (
+    "ID_ITEM_ORCAMENTO" TEXT NOT NULL,
+    "ID_ORCAMENTO" TEXT NOT NULL,
+    "ID_CENTRO_CUSTO" TEXT,
+    "CATEGORIA" TEXT NOT NULL,
+    "MES" DECIMAL(12,2) NOT NULL,
+    "VALOR_ORCADO" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "ItensOrcamento_pkey" PRIMARY KEY ("ID_ITEM_ORCAMENTO")
+);
+
+-- CreateTable
+CREATE TABLE "orcamento"."Orcado" (
+    "ID_ORCADO" TEXT NOT NULL,
+    "ID_ITEM_ORCAMENTO" TEXT NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "Orcado_pkey" PRIMARY KEY ("ID_ORCADO")
+);
+
+-- CreateTable
+CREATE TABLE "orcamento"."Realizado" (
+    "ID_REALIZADO" TEXT NOT NULL,
+    "ID_ITEM_ORCAMENTO" TEXT NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "Realizado_pkey" PRIMARY KEY ("ID_REALIZADO")
+);
+
+-- CreateTable
+CREATE TABLE "orcamento"."Projecoes" (
+    "ID_PROJECAO" TEXT NOT NULL,
+    "ID_ANO_LETIVO" TEXT NOT NULL,
+    "DESCRICAO" TEXT,
+
+    CONSTRAINT "Projecoes_pkey" PRIMARY KEY ("ID_PROJECAO")
+);
+
+-- CreateTable
+CREATE TABLE "orcamento"."Cenarios" (
+    "ID_CENARIO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "TIPO" TEXT NOT NULL,
+
+    CONSTRAINT "Cenarios_pkey" PRIMARY KEY ("ID_CENARIO")
+);
+
+-- CreateTable
+CREATE TABLE "orcamento"."ItensCenario" (
+    "ID_ITEM_CENARIO" TEXT NOT NULL,
+    "ID_CENARIO" TEXT NOT NULL,
+    "VARIAVEL" TEXT NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "ItensCenario_pkey" PRIMARY KEY ("ID_ITEM_CENARIO")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."Leads" (
+    "ID_LEAD" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ID_ORIGEM" TEXT,
+    "DATA_ENTRADA" TIMESTAMP(3) NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Leads_pkey" PRIMARY KEY ("ID_LEAD")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."Negociacoes" (
+    "ID_NEGOCIACAO" TEXT NOT NULL,
+    "ID_LEAD" TEXT,
+    "ID_ALUNO" TEXT,
+    "ID_SERIE" TEXT NOT NULL,
+    "ID_STATUS_NEGOCIACAO" TEXT NOT NULL,
+    "ID_EQUIPE" TEXT,
+    "DATA_ULTIMA_ATUALIZACAO" TIMESTAMP(3),
+
+    CONSTRAINT "Negociacoes_pkey" PRIMARY KEY ("ID_NEGOCIACAO")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."Propostas" (
+    "ID_PROPOSTA" TEXT NOT NULL,
+    "ID_NEGOCIACAO" TEXT NOT NULL,
+    "DATA_PROPOSTA" TIMESTAMP(3) NOT NULL,
+    "STATUS" TEXT NOT NULL,
+    "VALOR_TOTAL_MES" DECIMAL(12,2),
+    "PERCENTUAL_DESCONTO" DECIMAL(12,2),
+    "PERCENTUAL_DESCONTO_ENTRADA" DECIMAL(12,2),
+    "DATA_PAGAMENTO_ENTRADA" TIMESTAMP(3),
+    "QUANTIDADE_PARCELAS_MATERIAL_INGLES" DECIMAL(12,2),
+
+    CONSTRAINT "Propostas_pkey" PRIMARY KEY ("ID_PROPOSTA")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."ItensProposta" (
+    "ID_ITEM_PROPOSTA" TEXT NOT NULL,
+    "ID_PROPOSTA" TEXT NOT NULL,
+    "DESCRICAO" TEXT NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+    "PERCENTUAL_DESCONTO" DECIMAL(12,2),
+
+    CONSTRAINT "ItensProposta_pkey" PRIMARY KEY ("ID_ITEM_PROPOSTA")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."Matriculas" (
+    "ID_MATRICULA" TEXT NOT NULL,
+    "ID_ALUNO" TEXT NOT NULL,
+    "ID_PROPOSTA" TEXT,
+    "ID_ANO_LETIVO" TEXT NOT NULL,
+    "DATA_MATRICULA" TIMESTAMP(3) NOT NULL,
+    "STATUS" TEXT NOT NULL,
+
+    CONSTRAINT "Matriculas_pkey" PRIMARY KEY ("ID_MATRICULA")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."Rematriculas" (
+    "ID_REMATRICULA" TEXT NOT NULL,
+    "ID_ALUNO" TEXT NOT NULL,
+    "ID_ANO_LETIVO" TEXT NOT NULL,
+    "STATUS" TEXT NOT NULL,
+
+    CONSTRAINT "Rematriculas_pkey" PRIMARY KEY ("ID_REMATRICULA")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."FollowUps" (
+    "ID_FOLLOWUP" TEXT NOT NULL,
+    "ID_NEGOCIACAO" TEXT NOT NULL,
+    "DATA" TIMESTAMP(3) NOT NULL,
+    "OBSERVACAO" TEXT,
+
+    CONSTRAINT "FollowUps_pkey" PRIMARY KEY ("ID_FOLLOWUP")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."ParcelasProposta" (
+    "ID_PARCELA_PROPOSTA" TEXT NOT NULL,
+    "ID_PROPOSTA" TEXT NOT NULL,
+    "NUMERO_PARCELA" DECIMAL(12,2) NOT NULL,
+    "MES_REFERENCIA" DECIMAL(12,2) NOT NULL,
+    "ANO_REFERENCIA" DECIMAL(12,2) NOT NULL,
+    "VALOR_MENSALIDADE" DECIMAL(12,2) NOT NULL,
+    "VALOR_MATERIAL_DIDATICO" DECIMAL(12,2) NOT NULL,
+    "VALOR_MATERIAL_DIDATICO_INGLES" DECIMAL(12,2) NOT NULL,
+    "VALOR_ALIMENTACAO" DECIMAL(12,2) NOT NULL,
+    "VALOR_INTEGRAL" DECIMAL(12,2) NOT NULL,
+    "VALOR_SEMI_INTEGRAL" DECIMAL(12,2) NOT NULL,
+    "VALOR_ESTENDIDO" DECIMAL(12,2) NOT NULL,
+    "VALOR_TOTAL" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "ParcelasProposta_pkey" PRIMARY KEY ("ID_PARCELA_PROPOSTA")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."Origens" (
+    "ID_ORIGEM" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Origens_pkey" PRIMARY KEY ("ID_ORIGEM")
+);
+
+-- CreateTable
+CREATE TABLE "comercial"."StatusNegociacao" (
+    "ID_STATUS_NEGOCIACAO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ORDEM_FUNIL" DECIMAL(12,2),
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "StatusNegociacao_pkey" PRIMARY KEY ("ID_STATUS_NEGOCIACAO")
+);
+
+-- CreateTable
+CREATE TABLE "planejamento"."ProjecaoAlunos" (
+    "ID_PROJECAO_ALUNOS" TEXT NOT NULL,
+    "ID_SERIE" TEXT NOT NULL,
+    "ID_ANO_LETIVO" TEXT NOT NULL,
+    "ALUNOS_ATUAIS" DECIMAL(12,2),
+    "ALUNOS_PROJETADOS" DECIMAL(12,2),
+
+    CONSTRAINT "ProjecaoAlunos_pkey" PRIMARY KEY ("ID_PROJECAO_ALUNOS")
+);
+
+-- CreateTable
+CREATE TABLE "planejamento"."Ensalamento" (
+    "ID_ENSALAMENTO" TEXT NOT NULL,
+    "ID_TURMA" TEXT NOT NULL,
+    "ID_SALA" TEXT NOT NULL,
+    "ALUNOS" DECIMAL(12,2),
+    "OCUPACAO_PERCENTUAL" DECIMAL(12,2),
+    "STATUS" TEXT,
+
+    CONSTRAINT "Ensalamento_pkey" PRIMARY KEY ("ID_ENSALAMENTO")
+);
+
+-- CreateTable
+CREATE TABLE "planejamento"."CapacidadeSalas" (
+    "ID_CAPACIDADE" TEXT NOT NULL,
+    "ID_SALA" TEXT NOT NULL,
+    "CAPACIDADE_MAXIMA" DECIMAL(12,2) NOT NULL,
+    "MARGEM_OCUPACAO" DECIMAL(12,2),
+
+    CONSTRAINT "CapacidadeSalas_pkey" PRIMARY KEY ("ID_CAPACIDADE")
+);
+
+-- CreateTable
+CREATE TABLE "planejamento"."NecessidadeSalas" (
+    "ID_NECESSIDADE" TEXT NOT NULL,
+    "ID_SERIE" TEXT NOT NULL,
+    "SALAS_NECESSARIAS" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "NecessidadeSalas_pkey" PRIMARY KEY ("ID_NECESSIDADE")
+);
+
+-- CreateTable
+CREATE TABLE "planejamento"."PlanejamentoEquipe" (
+    "ID_PLANEJAMENTO_EQUIPE" TEXT NOT NULL,
+    "ID_TURMA" TEXT NOT NULL,
+    "ID_CARGO" TEXT NOT NULL,
+    "QUANTIDADE" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "PlanejamentoEquipe_pkey" PRIMARY KEY ("ID_PLANEJAMENTO_EQUIPE")
+);
+
+-- CreateTable
+CREATE TABLE "planejamento"."HorasTrabalhadas" (
+    "ID_HORAS_TRABALHADAS" TEXT NOT NULL,
+    "NIVEL_ENSINO" TEXT NOT NULL,
+    "HORAS_SEMANA" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "HorasTrabalhadas_pkey" PRIMARY KEY ("ID_HORAS_TRABALHADAS")
+);
+
+-- CreateTable
+CREATE TABLE "planejamento"."CustosPessoal" (
+    "ID_CUSTO_PESSOAL" TEXT NOT NULL,
+    "ID_TURMA" TEXT NOT NULL,
+    "ID_CARGO" TEXT NOT NULL,
+    "VALOR" DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT "CustosPessoal_pkey" PRIMARY KEY ("ID_CUSTO_PESSOAL")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."Parametros" (
+    "ID_PARAMETRO" TEXT NOT NULL,
+    "CHAVE" TEXT NOT NULL,
+    "VALOR" TEXT NOT NULL,
+    "DESCRICAO" TEXT,
+
+    CONSTRAINT "Parametros_pkey" PRIMARY KEY ("ID_PARAMETRO")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."Reajustes" (
+    "ID_REAJUSTE" TEXT NOT NULL,
+    "ID_SERIE" TEXT,
+    "ID_MODALIDADE" TEXT,
+    "ID_TURNO" TEXT,
+    "TIPO_COBRANCA" TEXT,
+    "PERCENTUAL" DECIMAL(12,2),
+    "VALOR" DECIMAL(12,2),
+    "DATA_VIGENCIA" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Reajustes_pkey" PRIMARY KEY ("ID_REAJUSTE")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."TiposReceita" (
+    "ID_TIPO_RECEITA" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "TiposReceita_pkey" PRIMARY KEY ("ID_TIPO_RECEITA")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."TiposDespesa" (
+    "ID_TIPO_DESPESA" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "TiposDespesa_pkey" PRIMARY KEY ("ID_TIPO_DESPESA")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."FormasPagamento" (
+    "ID_FORMA_PAGAMENTO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "FormasPagamento_pkey" PRIMARY KEY ("ID_FORMA_PAGAMENTO")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."Categorias" (
+    "ID_CATEGORIA" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Categorias_pkey" PRIMARY KEY ("ID_CATEGORIA")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."CentrosCusto" (
+    "ID_CENTRO_CUSTO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+    "ATIVO" BOOLEAN NOT NULL,
+
+    CONSTRAINT "CentrosCusto_pkey" PRIMARY KEY ("ID_CENTRO_CUSTO")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."Status" (
+    "ID_STATUS" TEXT NOT NULL,
+    "CONTEXTO" TEXT NOT NULL,
+    "NOME" TEXT NOT NULL,
+
+    CONSTRAINT "Status_pkey" PRIMARY KEY ("ID_STATUS")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."Permissoes" (
+    "ID_PERMISSAO" TEXT NOT NULL,
+    "PERFIL" TEXT NOT NULL,
+    "MODULO" TEXT NOT NULL,
+    "PODE_LER" BOOLEAN,
+    "PODE_EDITAR" BOOLEAN,
+
+    CONSTRAINT "Permissoes_pkey" PRIMARY KEY ("ID_PERMISSAO")
+);
+
+-- CreateTable
+CREATE TABLE "configuracoes"."ConfiguracoesDashboard" (
+    "ID_CONFIG_DASHBOARD" TEXT NOT NULL,
+    "CHAVE" TEXT NOT NULL,
+    "VALOR" TEXT NOT NULL,
+
+    CONSTRAINT "ConfiguracoesDashboard_pkey" PRIMARY KEY ("ID_CONFIG_DASHBOARD")
+);
+
+-- CreateTable
+CREATE TABLE "auditoria"."LogsAlteracoes" (
+    "ID_LOG" TEXT NOT NULL,
+    "DATA" TIMESTAMP(3) NOT NULL,
+    "HORA" TEXT NOT NULL,
+    "USUARIO" TEXT NOT NULL,
+    "ACAO" TEXT NOT NULL,
+    "ARQUIVO" TEXT NOT NULL,
+    "ABA" TEXT NOT NULL,
+    "ID_REGISTRO" TEXT,
+    "CAMPO" TEXT,
+    "VALOR_ANTERIOR" TEXT,
+    "VALOR_NOVO" TEXT,
+    "MOTIVO" TEXT,
+
+    CONSTRAINT "LogsAlteracoes_pkey" PRIMARY KEY ("ID_LOG")
+);
+
+-- CreateTable
+CREATE TABLE "auditoria"."LogsAcesso" (
+    "ID_LOG_ACESSO" TEXT NOT NULL,
+    "DATA" TIMESTAMP(3) NOT NULL,
+    "HORA" TEXT NOT NULL,
+    "USUARIO" TEXT NOT NULL,
+    "ACAO" TEXT NOT NULL,
+
+    CONSTRAINT "LogsAcesso_pkey" PRIMARY KEY ("ID_LOG_ACESSO")
+);
+
+-- CreateTable
+CREATE TABLE "auditoria"."LogsImportacao" (
+    "ID_LOG_IMPORTACAO" TEXT NOT NULL,
+    "DATA" TIMESTAMP(3) NOT NULL,
+    "USUARIO" TEXT NOT NULL,
+    "ARQUIVO_ORIGEM" TEXT NOT NULL,
+    "REGISTROS_IMPORTADOS" DECIMAL(12,2),
+    "REGISTROS_COM_ERRO" DECIMAL(12,2),
+
+    CONSTRAINT "LogsImportacao_pkey" PRIMARY KEY ("ID_LOG_IMPORTACAO")
+);
+
+-- CreateTable
+CREATE TABLE "auditoria"."LogsExportacao" (
+    "ID_LOG_EXPORTACAO" TEXT NOT NULL,
+    "DATA" TIMESTAMP(3) NOT NULL,
+    "USUARIO" TEXT NOT NULL,
+    "FORMATO" TEXT NOT NULL,
+
+    CONSTRAINT "LogsExportacao_pkey" PRIMARY KEY ("ID_LOG_EXPORTACAO")
+);
+
+-- CreateTable
+CREATE TABLE "auditoria"."LogsSistema" (
+    "ID_LOG_SISTEMA" TEXT NOT NULL,
+    "DATA" TIMESTAMP(3) NOT NULL,
+    "HORA" TEXT NOT NULL,
+    "NIVEL" TEXT NOT NULL,
+    "MENSAGEM" TEXT NOT NULL,
+
+    CONSTRAINT "LogsSistema_pkey" PRIMARY KEY ("ID_LOG_SISTEMA")
+);

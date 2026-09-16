@@ -1,4 +1,4 @@
-import { ExcelRepository, type RepoContext } from "../excel/ExcelRepository.js";
+import type { Repository, RepoContext } from "../repository/Repository.js";
 import type { Record_ } from "../types/schema.js";
 import type { ResourceDef } from "../api/resourceTypes.js";
 
@@ -10,13 +10,14 @@ export class BusinessRuleError extends Error {
 
 /**
  * Camada de regras de negócio (Seção 47/48): valida integridade referencial
- * antes de delegar ao ExcelRepository. O Controller nunca chama o Repository
- * diretamente. Generalizado para qualquer módulo — cada ResourceDef já carrega
- * o FileDef de onde vêm seus próprios dados (resource.file), e cada
- * ForeignKey pode apontar para uma aba em OUTRO arquivo (fk.targetFile).
+ * antes de delegar ao Repository (Seção 57: Excel ou Postgres, indiferente
+ * aqui). O Controller nunca chama o Repository diretamente. Generalizado
+ * para qualquer módulo — cada ResourceDef já carrega o FileDef de onde vêm
+ * seus próprios dados (resource.file), e cada ForeignKey pode apontar para
+ * uma aba em OUTRO arquivo (fk.targetFile).
  */
 export class CrudService {
-  constructor(private repo: ExcelRepository) {}
+  constructor(private repo: Repository) {}
 
   async list(resource: ResourceDef, filters: Record<string, string>): Promise<Record_[]> {
     const all = await this.repo.readAll(resource.file, resource.sheetName);

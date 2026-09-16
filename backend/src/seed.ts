@@ -1,18 +1,16 @@
-import { ExcelRepository } from "./excel/ExcelRepository.js";
+// Seção 57: a estrutura (schemas/tabelas) agora é criada pelas migrations do
+// Prisma (`npx prisma migrate dev`), não por este script -- ver
+// backend/prisma/schema.prisma. Mantido só para checar que a conexão com o
+// Postgres configurado em DATABASE_URL está de pé.
 import { ALL_FILES } from "./schema/files.js";
-import { ensureDir } from "./excel/workbookIO.js";
-import { DATA_ROOT, BACKUPS_ROOT } from "./config/paths.js";
+import { getPrismaClient } from "./repository/prismaClient.js";
 
 async function main() {
-  await ensureDir(DATA_ROOT);
-  await ensureDir(BACKUPS_ROOT);
-
-  const repo = new ExcelRepository();
-  for (const fileDef of ALL_FILES) {
-    await repo.ensureFile(fileDef);
-    console.log(`OK  ${fileDef.fileName}  (${fileDef.sheets.length} abas)`);
-  }
-  console.log(`\nEstrutura criada em: ${DATA_ROOT}`);
+  const prisma = getPrismaClient();
+  await prisma.$connect();
+  console.log(`Conectado ao Postgres. Rode "npx prisma migrate dev" (dentro de backend/) para aplicar o schema.`);
+  console.log(`Módulos esperados: ${ALL_FILES.map((f) => f.fileName).join(", ")}`);
+  await prisma.$disconnect();
 }
 
 main().catch((err) => {

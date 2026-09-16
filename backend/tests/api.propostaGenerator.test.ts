@@ -1,22 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import request from "supertest";
-
-const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sas-data-api-proposta-gen-"));
-process.env.SAS_DATA_ROOT = tmpRoot;
+import { createTestDatabase, type TestDatabase } from "./setup/testDatabase.js";
+import { PostgresRepository } from "../src/repository/PostgresRepository.js";
 
 const { createApp } = await import("../src/api/app.js");
 
+let db: TestDatabase;
 let app: Awaited<ReturnType<typeof createApp>>;
 
 beforeAll(async () => {
-  app = await createApp();
+  db = await createTestDatabase();
+  app = await createApp({ repo: new PostgresRepository(db.prisma) });
 });
 
-afterAll(() => {
-  fs.rmSync(tmpRoot, { recursive: true, force: true });
+afterAll(async () => {
+  await db.close();
 });
 
 // DATA_PAGAMENTO_ENTRADA é obrigatória desde 2026-09-13 (Entrada sempre

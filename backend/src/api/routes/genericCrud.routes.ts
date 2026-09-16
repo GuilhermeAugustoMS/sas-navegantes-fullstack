@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ExcelRepository } from "../../excel/ExcelRepository.js";
+import type { Repository } from "../../repository/Repository.js";
 import { CrudService } from "../../services/CrudService.js";
 import type { ResourceDef } from "../resourceTypes.js";
 import { makeCrudController } from "../controllers/crudController.js";
@@ -11,7 +11,7 @@ import { findSheetDef } from "../../schema/files.js";
  * Deixou de ser específico de Cadastros — o módulo agora é só o array de
  * ResourceDef passado por quem monta o app (app.ts).
  */
-export function crudRouter(repo: ExcelRepository, resources: ResourceDef[]): Router {
+export function crudRouter(repo: Repository, resources: ResourceDef[]): Router {
   const router = Router();
   const service = new CrudService(repo);
 

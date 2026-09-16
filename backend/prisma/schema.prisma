@@ -1,0 +1,701 @@
+// Schema Postgres (Seção 57 do prompt mestre: troca de camada de persistência,
+// Excel -> banco de verdade, decidida com o usuário em 2026-09-16).
+//
+// Um schema Postgres por módulo (cadastros, financeiro, orcamento, comercial,
+// planejamento, configuracoes, auditoria), espelhando os 7 arquivos .xlsx de
+// hoje (backend/src/schema/files.ts é a fonte de verdade original -- este
+// arquivo é gerado a partir dela, coluna por coluna).
+//
+// Decisões confirmadas com o usuário (não mudar sem nova confirmação):
+// - IDs continuam strings com prefixo geradas pela aplicação (ALU_000001 etc.),
+//   não serial/UUID nativo -- toda coluna de ID aqui é só `String @id`.
+// - Colunas "number" do schema original viram Decimal(12,2) no Postgres (mais
+//   seguro que float para dinheiro); a aplicação sempre recebe/devolve JS
+//   number puro (conversão feita no PostgresRepository, nunca Decimal
+//   vazando para o resto do código).
+// - Colunas enum viram TEXT (String) + CHECK constraint (adicionada via SQL
+//   bruto na migration, não como enum nativo do Postgres -- mais fácil de
+//   estender a lista de valores permitidos no futuro).
+// - Nenhuma FK real (@relation) entre tabelas: a checagem de integridade
+//   referencial (inclusive cross-schema, ex.: Negociacoes.ID_ALUNO ->
+//   cadastros.Alunos) continua 100% em CrudService.checkForeignKeys
+//   (inalterado) -- um FK real do banco não expressaria a regra "alvo
+//   precisa estar ATIVO", que é mais restritiva que uma FK comum.
+//
+// Colisão de nome de tabela (achado ao escrever este arquivo, sem uso ativo
+// hoje): TiposReceita, TiposDespesa, FormasPagamento e CentrosCusto existem
+// tanto no módulo "dono" (financeiro/cadastros, ativo) quanto em
+// "configuracoes" (schema inteiro ainda sem nenhuma rota implementada, só
+// preparado para o futuro -- ver CLAUDE.md). Prisma exige nome de modelo
+// único no arquivo inteiro, mesmo com schemas Postgres diferentes -- por
+// isso as 4 cópias dormentes em "configuracoes" ganham o prefixo
+// "Configuracoes" no nome do modelo Prisma, mas mantêm o nome de tabela
+// físico original via @@map (não afeta nenhum código ativo).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: a URL de conexão não vai mais aqui -- fica em prisma.config.ts
+// (CLI: migrate/db push/studio) e é passada via driver adapter (@prisma/adapter-pg)
+// na construção do PrismaClient em runtime (backend/src/repository/prismaClient.ts).
+datasource db {
+  provider = "postgresql"
+  schemas  = ["cadastros", "financeiro", "orcamento", "comercial", "planejamento", "configuracoes", "auditoria"]
+}
+
+// ============================================================
+// 01_CADASTROS.xlsx -> schema "cadastros"
+// ============================================================
+
+model Alunos {
+  ID_ALUNO                String   @id
+  NOME                    String
+  DATA_NASCIMENTO         DateTime
+  GENERO                  String?
+  ID_SERIE                String?
+  ID_TURMA                String?
+  ID_TURNO                String?
+  NECESSIDADE_ALIMENTACAO Boolean?
+  HORARIO_ESPECIAL        String?
+  DATA_CADASTRO           DateTime
+  ATIVO                   Boolean
+
+  @@schema("cadastros")
+}
+
+model Responsaveis {
+  ID_RESPONSAVEL String  @id
+  NOME           String
+  CPF            String?
+  EMAIL          String?
+  TELEFONE       String?
+  ATIVO          Boolean
+
+  @@schema("cadastros")
+}
+
+model ResponsaveisFinanceiros {
+  ID_ALUNO_RESPONSAVEL String  @id
+  ID_ALUNO             String
+  ID_RESPONSAVEL       String
+  TIPO                 String
+  ATIVO                Boolean
+
+  @@schema("cadastros")
+}
+
+model AnosLetivos {
+  ID_ANO_LETIVO String  @id
+  ANO           Decimal @db.Decimal(12, 2)
+  ATIVO         Boolean
+
+  @@schema("cadastros")
+}
+
+model Series {
+  ID_SERIE      String  @id
+  NOME          String
+  NIVEL_ENSINO  String?
+  ID_ANO_LETIVO String
+  ATIVO         Boolean
+
+  @@schema("cadastros")
+}
+
+model Turmas {
+  ID_TURMA          String  @id
+  ID_SERIE          String
+  NOME              String
+  ID_TURNO          String?
+  ID_SALA           String?
+  CAPACIDADE_MAXIMA Decimal @db.Decimal(12, 2)
+  ATIVO             Boolean
+
+  @@schema("cadastros")
+}
+
+model Salas {
+  ID_SALA    String  @id
+  NOME       String
+  CAPACIDADE Decimal @db.Decimal(12, 2)
+  ATIVO      Boolean
+
+  @@schema("cadastros")
+}
+
+model Turnos {
+  ID_TURNO String  @id
+  NOME     String
+  ATIVO    Boolean
+
+  @@schema("cadastros")
+}
+
+model Modalidades {
+  ID_MODALIDADE String  @id
+  NOME          String
+  ATIVO         Boolean
+
+  @@schema("cadastros")
+}
+
+model Funcionarios {
+  ID_FUNCIONARIO String   @id
+  NOME           String
+  ID_CARGO       String
+  ID_EQUIPE      String?
+  SALARIO_BRUTO  Decimal? @db.Decimal(12, 2)
+  ATIVO          Boolean
+
+  @@schema("cadastros")
+}
+
+model Cargos {
+  ID_CARGO String  @id
+  NOME     String
+  ATIVO    Boolean
+
+  @@schema("cadastros")
+}
+
+model Equipes {
+  ID_EQUIPE String  @id
+  NOME      String
+  ATIVO     Boolean
+
+  @@schema("cadastros")
+}
+
+model CentrosCusto {
+  ID_CENTRO_CUSTO String  @id
+  NOME            String
+  ATIVO           Boolean
+
+  @@schema("cadastros")
+}
+
+// ============================================================
+// 02_FINANCEIRO.xlsx -> schema "financeiro"
+// ============================================================
+
+model Receitas {
+  ID_LANCAMENTO   String    @id
+  ID_ALUNO        String?
+  ID_RESPONSAVEL  String?
+  TIPO            String
+  CATEGORIA       String?
+  COMPETENCIA     String
+  VENCIMENTO      DateTime?
+  VALOR           Decimal   @db.Decimal(12, 2)
+  STATUS          String
+  FORMA_PAGAMENTO String?
+  OBSERVACAO      String?
+
+  @@schema("financeiro")
+}
+
+model Despesas {
+  ID_LANCAMENTO   String    @id
+  ID_CENTRO_CUSTO String?
+  TIPO            String
+  CATEGORIA       String?
+  COMPETENCIA     String
+  VENCIMENTO      DateTime?
+  VALOR           Decimal   @db.Decimal(12, 2)
+  STATUS          String
+  FORMA_PAGAMENTO String?
+  OBSERVACAO      String?
+
+  @@schema("financeiro")
+}
+
+model ContasPagar {
+  ID_CONTA_PAGAR String   @id
+  ID_LANCAMENTO  String
+  VENCIMENTO     DateTime
+  VALOR          Decimal  @db.Decimal(12, 2)
+  STATUS         String
+
+  @@schema("financeiro")
+}
+
+model ContasReceber {
+  ID_CONTA_RECEBER String   @id
+  ID_LANCAMENTO    String
+  VENCIMENTO       DateTime
+  VALOR            Decimal  @db.Decimal(12, 2)
+  STATUS           String
+
+  @@schema("financeiro")
+}
+
+model FormasPagamento {
+  ID_FORMA_PAGAMENTO   String   @id
+  NOME                 String
+  QTD_PARCELAS         Decimal? @db.Decimal(12, 2)
+  MULTIPLICADOR_AJUSTE Decimal? @db.Decimal(12, 2)
+  ATIVO                Boolean
+
+  @@schema("financeiro")
+}
+
+model TiposReceita {
+  ID_TIPO_RECEITA String  @id
+  NOME            String
+  ATIVO           Boolean
+
+  @@schema("financeiro")
+}
+
+model TiposDespesa {
+  ID_TIPO_DESPESA String  @id
+  NOME            String
+  ATIVO           Boolean
+
+  @@schema("financeiro")
+}
+
+model Movimentacoes {
+  ID_MOVIMENTACAO String   @id
+  ID_LANCAMENTO   String
+  DATA            DateTime
+  VALOR           Decimal  @db.Decimal(12, 2)
+  TIPO            String
+
+  @@schema("financeiro")
+}
+
+model TabelaPrecos {
+  ID_TABELA_PRECO          String   @id
+  ID_SERIE                 String
+  MENSALIDADE              Decimal  @db.Decimal(12, 2)
+  MATERIAL_DIDATICO        Decimal  @db.Decimal(12, 2)
+  MATERIAL_DIDATICO_INGLES Decimal  @db.Decimal(12, 2)
+  ALIMENTACAO              Decimal  @db.Decimal(12, 2)
+  DATA_VIGENCIA            DateTime
+  ATIVO                    Boolean
+
+  @@schema("financeiro")
+}
+
+model ProgramasExtras {
+  ID_PROGRAMA_EXTRA String   @id
+  NOME              String
+  VALOR_DIA         Decimal? @db.Decimal(12, 2)
+  VALOR_MES         Decimal  @db.Decimal(12, 2)
+  DATA_VIGENCIA     DateTime
+  ATIVO             Boolean
+
+  @@schema("financeiro")
+}
+
+// ============================================================
+// 03_ORCAMENTO.xlsx -> schema "orcamento" (módulo ainda não
+// implementado em nenhuma rota -- ver CLAUDE.md "Ainda não
+// implementados"; migrado agora só para não migrar duas vezes)
+// ============================================================
+
+model Orcamentos {
+  ID_ORCAMENTO  String  @id
+  ID_ANO_LETIVO String
+  ATIVO         Boolean
+
+  @@schema("orcamento")
+}
+
+model ItensOrcamento {
+  ID_ITEM_ORCAMENTO String  @id
+  ID_ORCAMENTO      String
+  ID_CENTRO_CUSTO   String?
+  CATEGORIA         String
+  MES               Decimal @db.Decimal(12, 2)
+  VALOR_ORCADO      Decimal @db.Decimal(12, 2)
+
+  @@schema("orcamento")
+}
+
+model Orcado {
+  ID_ORCADO         String  @id
+  ID_ITEM_ORCAMENTO String
+  VALOR             Decimal @db.Decimal(12, 2)
+
+  @@schema("orcamento")
+}
+
+model Realizado {
+  ID_REALIZADO      String  @id
+  ID_ITEM_ORCAMENTO String
+  VALOR             Decimal @db.Decimal(12, 2)
+
+  @@schema("orcamento")
+}
+
+model Projecoes {
+  ID_PROJECAO   String  @id
+  ID_ANO_LETIVO String
+  DESCRICAO     String?
+
+  @@schema("orcamento")
+}
+
+model Cenarios {
+  ID_CENARIO String @id
+  NOME       String
+  TIPO       String
+
+  @@schema("orcamento")
+}
+
+model ItensCenario {
+  ID_ITEM_CENARIO String  @id
+  ID_CENARIO      String
+  VARIAVEL        String
+  VALOR           Decimal @db.Decimal(12, 2)
+
+  @@schema("orcamento")
+}
+
+// ============================================================
+// 04_COMERCIAL.xlsx -> schema "comercial"
+// ============================================================
+
+model Leads {
+  ID_LEAD      String   @id
+  NOME         String
+  ID_ORIGEM    String?
+  DATA_ENTRADA DateTime
+  ATIVO        Boolean
+
+  @@schema("comercial")
+}
+
+model Negociacoes {
+  ID_NEGOCIACAO           String    @id
+  ID_LEAD                 String?
+  ID_ALUNO                String?
+  ID_SERIE                String
+  ID_STATUS_NEGOCIACAO    String
+  ID_EQUIPE               String?
+  DATA_ULTIMA_ATUALIZACAO DateTime?
+
+  @@schema("comercial")
+}
+
+model Propostas {
+  ID_PROPOSTA                         String    @id
+  ID_NEGOCIACAO                       String
+  DATA_PROPOSTA                       DateTime
+  STATUS                              String
+  VALOR_TOTAL_MES                     Decimal?  @db.Decimal(12, 2)
+  PERCENTUAL_DESCONTO                 Decimal?  @db.Decimal(12, 2)
+  PERCENTUAL_DESCONTO_ENTRADA         Decimal?  @db.Decimal(12, 2)
+  DATA_PAGAMENTO_ENTRADA              DateTime?
+  QUANTIDADE_PARCELAS_MATERIAL_INGLES Decimal?  @db.Decimal(12, 2)
+
+  @@schema("comercial")
+}
+
+model ItensProposta {
+  ID_ITEM_PROPOSTA    String   @id
+  ID_PROPOSTA         String
+  DESCRICAO           String
+  VALOR               Decimal  @db.Decimal(12, 2)
+  PERCENTUAL_DESCONTO Decimal? @db.Decimal(12, 2)
+
+  @@schema("comercial")
+}
+
+model Matriculas {
+  ID_MATRICULA   String   @id
+  ID_ALUNO       String
+  ID_PROPOSTA    String?
+  ID_ANO_LETIVO  String
+  DATA_MATRICULA DateTime
+  STATUS         String
+
+  @@schema("comercial")
+}
+
+model Rematriculas {
+  ID_REMATRICULA String @id
+  ID_ALUNO       String
+  ID_ANO_LETIVO  String
+  STATUS         String
+
+  @@schema("comercial")
+}
+
+model FollowUps {
+  ID_FOLLOWUP   String   @id
+  ID_NEGOCIACAO String
+  DATA          DateTime
+  OBSERVACAO    String?
+
+  @@schema("comercial")
+}
+
+model ParcelasProposta {
+  ID_PARCELA_PROPOSTA            String  @id
+  ID_PROPOSTA                    String
+  NUMERO_PARCELA                 Decimal @db.Decimal(12, 2)
+  MES_REFERENCIA                 Decimal @db.Decimal(12, 2)
+  ANO_REFERENCIA                 Decimal @db.Decimal(12, 2)
+  VALOR_MENSALIDADE              Decimal @db.Decimal(12, 2)
+  VALOR_MATERIAL_DIDATICO        Decimal @db.Decimal(12, 2)
+  VALOR_MATERIAL_DIDATICO_INGLES Decimal @db.Decimal(12, 2)
+  VALOR_ALIMENTACAO              Decimal @db.Decimal(12, 2)
+  VALOR_INTEGRAL                 Decimal @db.Decimal(12, 2)
+  VALOR_SEMI_INTEGRAL            Decimal @db.Decimal(12, 2)
+  VALOR_ESTENDIDO                Decimal @db.Decimal(12, 2)
+  VALOR_TOTAL                    Decimal @db.Decimal(12, 2)
+
+  @@schema("comercial")
+}
+
+model Origens {
+  ID_ORIGEM String  @id
+  NOME      String
+  ATIVO     Boolean
+
+  @@schema("comercial")
+}
+
+model StatusNegociacao {
+  ID_STATUS_NEGOCIACAO String   @id
+  NOME                 String
+  ORDEM_FUNIL          Decimal? @db.Decimal(12, 2)
+  ATIVO                Boolean
+
+  @@schema("comercial")
+}
+
+// ============================================================
+// 05_PLANEJAMENTO.xlsx -> schema "planejamento" (módulo ainda não
+// implementado em nenhuma rota -- ver CLAUDE.md)
+// ============================================================
+
+model ProjecaoAlunos {
+  ID_PROJECAO_ALUNOS String   @id
+  ID_SERIE           String
+  ID_ANO_LETIVO      String
+  ALUNOS_ATUAIS      Decimal? @db.Decimal(12, 2)
+  ALUNOS_PROJETADOS  Decimal? @db.Decimal(12, 2)
+
+  @@schema("planejamento")
+}
+
+model Ensalamento {
+  ID_ENSALAMENTO      String   @id
+  ID_TURMA            String
+  ID_SALA             String
+  ALUNOS              Decimal? @db.Decimal(12, 2)
+  OCUPACAO_PERCENTUAL Decimal? @db.Decimal(12, 2)
+  STATUS              String?
+
+  @@schema("planejamento")
+}
+
+model CapacidadeSalas {
+  ID_CAPACIDADE     String   @id
+  ID_SALA           String
+  CAPACIDADE_MAXIMA Decimal  @db.Decimal(12, 2)
+  MARGEM_OCUPACAO   Decimal? @db.Decimal(12, 2)
+
+  @@schema("planejamento")
+}
+
+model NecessidadeSalas {
+  ID_NECESSIDADE    String  @id
+  ID_SERIE          String
+  SALAS_NECESSARIAS Decimal @db.Decimal(12, 2)
+
+  @@schema("planejamento")
+}
+
+model PlanejamentoEquipe {
+  ID_PLANEJAMENTO_EQUIPE String  @id
+  ID_TURMA               String
+  ID_CARGO               String
+  QUANTIDADE             Decimal @db.Decimal(12, 2)
+
+  @@schema("planejamento")
+}
+
+model HorasTrabalhadas {
+  ID_HORAS_TRABALHADAS String  @id
+  NIVEL_ENSINO         String
+  HORAS_SEMANA         Decimal @db.Decimal(12, 2)
+
+  @@schema("planejamento")
+}
+
+model CustosPessoal {
+  ID_CUSTO_PESSOAL String  @id
+  ID_TURMA         String
+  ID_CARGO         String
+  VALOR            Decimal @db.Decimal(12, 2)
+
+  @@schema("planejamento")
+}
+
+// ============================================================
+// 06_CONFIGURACOES.xlsx -> schema "configuracoes" (módulo ainda
+// não implementado em nenhuma rota -- ver CLAUDE.md). 4 modelos
+// abaixo (Configuracoes*) são cópias dormentes que colidem de nome
+// com tabelas ativas de outro módulo -- ver comentário no topo do
+// arquivo.
+// ============================================================
+
+model Parametros {
+  ID_PARAMETRO String  @id
+  CHAVE        String
+  VALOR        String
+  DESCRICAO    String?
+
+  @@schema("configuracoes")
+}
+
+model Reajustes {
+  ID_REAJUSTE   String   @id
+  ID_SERIE      String?
+  ID_MODALIDADE String?
+  ID_TURNO      String?
+  TIPO_COBRANCA String?
+  PERCENTUAL    Decimal? @db.Decimal(12, 2)
+  VALOR         Decimal? @db.Decimal(12, 2)
+  DATA_VIGENCIA DateTime
+
+  @@schema("configuracoes")
+}
+
+model ConfiguracoesTiposReceita {
+  ID_TIPO_RECEITA String  @id
+  NOME            String
+  ATIVO           Boolean
+
+  @@map("TiposReceita")
+  @@schema("configuracoes")
+}
+
+model ConfiguracoesTiposDespesa {
+  ID_TIPO_DESPESA String  @id
+  NOME            String
+  ATIVO           Boolean
+
+  @@map("TiposDespesa")
+  @@schema("configuracoes")
+}
+
+model ConfiguracoesFormasPagamento {
+  ID_FORMA_PAGAMENTO String  @id
+  NOME               String
+  ATIVO              Boolean
+
+  @@map("FormasPagamento")
+  @@schema("configuracoes")
+}
+
+model Categorias {
+  ID_CATEGORIA String  @id
+  NOME         String
+  ATIVO        Boolean
+
+  @@schema("configuracoes")
+}
+
+model ConfiguracoesCentrosCusto {
+  ID_CENTRO_CUSTO String  @id
+  NOME            String
+  ATIVO           Boolean
+
+  @@map("CentrosCusto")
+  @@schema("configuracoes")
+}
+
+model Status {
+  ID_STATUS String @id
+  CONTEXTO  String
+  NOME      String
+
+  @@schema("configuracoes")
+}
+
+model Permissoes {
+  ID_PERMISSAO String   @id
+  PERFIL       String
+  MODULO       String
+  PODE_LER     Boolean?
+  PODE_EDITAR  Boolean?
+
+  @@schema("configuracoes")
+}
+
+model ConfiguracoesDashboard {
+  ID_CONFIG_DASHBOARD String @id
+  CHAVE               String
+  VALOR               String
+
+  @@schema("configuracoes")
+}
+
+// ============================================================
+// 07_AUDITORIA.xlsx -> schema "auditoria"
+// ============================================================
+
+model LogsAlteracoes {
+  ID_LOG         String   @id
+  DATA           DateTime
+  HORA           String
+  USUARIO        String
+  ACAO           String
+  ARQUIVO        String
+  ABA            String
+  ID_REGISTRO    String?
+  CAMPO          String?
+  VALOR_ANTERIOR String?
+  VALOR_NOVO     String?
+  MOTIVO         String?
+
+  @@schema("auditoria")
+}
+
+model LogsAcesso {
+  ID_LOG_ACESSO String   @id
+  DATA          DateTime
+  HORA          String
+  USUARIO       String
+  ACAO          String
+
+  @@schema("auditoria")
+}
+
+model LogsImportacao {
+  ID_LOG_IMPORTACAO    String   @id
+  DATA                 DateTime
+  USUARIO              String
+  ARQUIVO_ORIGEM       String
+  REGISTROS_IMPORTADOS Decimal? @db.Decimal(12, 2)
+  REGISTROS_COM_ERRO   Decimal? @db.Decimal(12, 2)
+
+  @@schema("auditoria")
+}
+
+model LogsExportacao {
+  ID_LOG_EXPORTACAO String   @id
+  DATA              DateTime
+  USUARIO           String
+  FORMATO           String
+
+  @@schema("auditoria")
+}
+
+model LogsSistema {
+  ID_LOG_SISTEMA String   @id
+  DATA           DateTime
+  HORA           String
+  NIVEL          String
+  MENSAGEM       String
+
+  @@schema("auditoria")
+}
