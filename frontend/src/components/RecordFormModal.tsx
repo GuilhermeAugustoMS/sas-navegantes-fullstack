@@ -3,6 +3,7 @@ import type { RecordRow, ResourceDef } from "../api/types";
 import { api, ApiError } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
 import { displayLabel, emptyRecordFor } from "../lib/records";
+import { fieldLabel } from "../lib/fieldLabels";
 import { idadeEm31Marco, nivelParaIdade, seriesSugeridas } from "../lib/serieSugerida";
 
 interface Props {
@@ -218,7 +219,7 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
       return true;
     } catch (err) {
       if (err instanceof ApiError && err.body.detalhes?.length) {
-        setResponsavelErro(err.body.detalhes.map((d) => `${d.field}: ${d.problem}`).join("; "));
+        setResponsavelErro(err.body.detalhes.map((d) => `${fieldLabel(d.field)}: ${d.problem}`).join("; "));
       } else {
         setResponsavelErro(err instanceof Error ? err.message : "Erro ao vincular Responsável Financeiro.");
       }
@@ -337,7 +338,7 @@ export function RecordFormModal({ resource, record, usuario, onClose, onSaved, i
             return (
               <div key={col.nome}>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  {col.nome}
+                  {fieldLabel(col.nome)}
                   {col.obrigatorio && <span className="text-red-500"> *</span>}
                 </label>
 

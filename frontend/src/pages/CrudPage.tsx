@@ -133,7 +133,7 @@ export function CrudPage() {
           <>
             <TopBar
               title={resource?.label ?? "Sas Navegantes"}
-              subtitle={resource ? `${resource.arquivo} — ${resource.aba}` : undefined}
+              subtitle={resource ? MODULES.find((m) => m.apiBase === resource.apiBase)?.label : undefined}
               usuario={usuario}
               onUsuarioChange={setUsuario}
             >

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { RecordRow, ResourceDef } from "../api/types";
 import { useCatalog } from "../context/CatalogContext";
 import { displayLabel, hasAtivo } from "../lib/records";
+import { fieldLabel } from "../lib/fieldLabels";
+import { fmtData } from "../lib/format";
 
 interface Props {
   resource: ResourceDef;
@@ -53,7 +55,7 @@ export function DataTable({ resource, rows, onEdit, onDelete }: Props) {
             <th className="text-left font-medium text-slate-600 px-3 py-2">ID</th>
             {visibleColumns.map((c) => (
               <th key={c.nome} className="text-left font-medium text-slate-600 px-3 py-2 whitespace-nowrap">
-                {c.nome}
+                {fieldLabel(c.nome)}
               </th>
             ))}
             {showAtivo && <th className="text-left font-medium text-slate-600 px-3 py-2">Status</th>}
@@ -75,6 +77,8 @@ export function DataTable({ resource, rows, onEdit, onDelete }: Props) {
                     display = fkMap.get(raw) ?? raw;
                   } else if (c.tipo === "boolean") {
                     display = raw ? "Sim" : "Não";
+                  } else if (c.tipo === "date") {
+                    display = fmtData(raw);
                   } else if (raw === null || raw === undefined || raw === "") {
                     display = "—";
                   } else {
