@@ -1,0 +1,82 @@
+/*
+ * Ícone animado hambúrguer -> X, base: uiverse.io/NAKAMOZ/pretty-ladybug-100
+ * (CSS puro, MIT). O exemplo original foi desenhado para um ícone de menu
+ * grande (linhas de 32px); aqui ele substitui o "⋮" discreto (3 pontinhos)
+ * do botão de abrir/fechar o painel de desconto, então largura da linha,
+ * espaçamento e o translateX de saída da 3ª linha foram todos reduzidos na
+ * mesma proporção, pra caber no ícone pequeno que já existia.
+ *
+ * Cor herdada via currentColor -- o "⋮" antigo usava bg-current (cinza em
+ * repouso, azul no hover, vindo de classes Tailwind no componente pai), não
+ * branco como no exemplo original. Tamanho/cor/hover do botão continuam
+ * vindo de classes Tailwind passadas via `className`; este arquivo só
+ * desenha a geometria/animação das 3 linhas.
+ */
+.hamburger-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.hamburger-toggle input {
+  position: absolute;
+  opacity: 0;
+  height: 0;
+  width: 0;
+  margin: 0;
+}
+
+.hamburger-toggle-lines {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 10px;
+}
+
+.hamburger-toggle-lines span {
+  position: absolute;
+  left: 0;
+  width: 14px;
+  height: 1.5px;
+  background-color: currentColor;
+  border-radius: 1px;
+  transition: top 0.25s ease-in-out, transform 0.25s ease-in-out, opacity 0.25s ease-in-out;
+}
+
+.hamburger-toggle-lines span:nth-child(1) {
+  top: 0;
+}
+
+.hamburger-toggle-lines span:nth-child(2) {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.hamburger-toggle-lines span:nth-child(3) {
+  top: 100%;
+  transform: translateY(-100%);
+}
+
+.hamburger-toggle input:checked + .hamburger-toggle-lines span:nth-child(1) {
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.hamburger-toggle input:checked + .hamburger-toggle-lines span:nth-child(2) {
+  top: 50%;
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.hamburger-toggle input:checked + .hamburger-toggle-lines span:nth-child(3) {
+  top: 50%;
+  transform: translateY(-50%) translateX(-16px);
+  opacity: 0;
+}
+
+.hamburger-toggle:has(input:focus-visible) {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}

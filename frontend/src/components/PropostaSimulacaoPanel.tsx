@@ -3,6 +3,8 @@ import { api, ApiError } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ToggleSwitch } from "./ToggleSwitch";
+import { HamburgerToggleIcon } from "./HamburgerToggleIcon";
+import { fieldLabel } from "../lib/fieldLabels";
 import logoNavegantes from "../assets/logo-navegantes.webp";
 import type { GerarParcelasInput, ParcelaProposta, RecordRow } from "../api/types";
 
@@ -10,6 +12,18 @@ const MESES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
+
+/** Cor do badge de STATUS da Proposta (enum fixo -- ver backend/src/schema/files.ts,
+ * aba Propostas) -- mesmo padrão de pill já usado em DataTable.tsx pro Ativo/Inativo,
+ * reaproveitando as cores de sistema já estabelecidas (azul = em andamento, verde =
+ * sucesso, vermelho = recusada, cinza = encerrada sem sucesso). */
+const STATUS_PROPOSTA_ESTILO: Record<string, string> = {
+  Criada: "bg-brand-blue/10 text-brand-blue-dark",
+  Aprovada: "bg-brand-blue/10 text-brand-blue-dark",
+  Aceita: "bg-emerald-50 text-emerald-700",
+  Recusada: "bg-red-50 text-red-700",
+  Cancelada: "bg-slate-100 text-slate-500",
+};
 
 function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -307,8 +321,19 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-slate-500">
-          Status da Proposta: <span className="font-medium text-slate-700">{statusProposta ?? "—"}</span>
+        <p className="text-xs text-slate-500 flex items-center gap-2">
+          Status da Proposta:
+          {statusProposta ? (
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                STATUS_PROPOSTA_ESTILO[statusProposta] ?? "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {statusProposta}
+            </span>
+          ) : (
+            <span className="font-medium text-slate-700">—</span>
+          )}
         </p>
         {statusProposta !== "Cancelada" && (
           <button
@@ -446,7 +471,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
           {detalhesErro && detalhesErro.length > 0 && (
             <ul className="mt-1 list-disc list-inside">
               {detalhesErro.map((d, i) => (
-                <li key={i}>{d.field}: {d.problem}</li>
+                <li key={i}>{fieldLabel(d.field)}: {d.problem}</li>
               ))}
             </ul>
           )}
@@ -525,17 +550,12 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
 
           {!jaGerada && preview && (
             <div className="mb-4 print:hidden">
-              <button
-                type="button"
-                onClick={() => setDescontoAberto((v) => !v)}
-                title={descontoAberto ? "Ocultar desconto" : "Aplicar desconto"}
-                aria-label={descontoAberto ? "Ocultar desconto" : "Aplicar desconto"}
-                className="flex flex-col items-center justify-center gap-0.5 h-7 w-7 rounded-md text-slate-400 hover:text-brand-blue-dark hover:bg-slate-100"
-              >
-                <span className="h-1 w-1 rounded-full bg-current" />
-                <span className="h-1 w-1 rounded-full bg-current" />
-                <span className="h-1 w-1 rounded-full bg-current" />
-              </button>
+              <HamburgerToggleIcon
+                checked={descontoAberto}
+                onChange={setDescontoAberto}
+                ariaLabel={descontoAberto ? "Ocultar desconto" : "Aplicar desconto"}
+                className="h-7 w-7 rounded-md text-slate-400 hover:text-brand-blue-dark hover:bg-slate-100 transition-colors"
+              />
               {descontoAberto && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div className="flex items-center gap-2">
@@ -608,7 +628,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                   <th className="py-1 pr-3 text-right">Integral</th>
                   <th className="py-1 pr-3 text-right">Semi-Int.</th>
                   <th className="py-1 pr-3 text-right">Estendido</th>
-                  <th className="py-1 pr-3 text-right font-semibold">Total</th>
+                  <th className="py-1 pr-3 text-right font-semibold text-brand-navy">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -625,7 +645,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                       <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorIntegral)}</td>
                       <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorSemiIntegral)}</td>
                       <td className="py-1 pr-3 text-right">{fmtMoeda(p.valorEstendido)}</td>
-                      <td className="py-1 pr-3 text-right font-semibold">{fmtMoeda(p.valorTotal)}</td>
+                      <td className="py-1 pr-3 text-right font-semibold text-brand-navy">{fmtMoeda(p.valorTotal)}</td>
                     </tr>
                   );
                 })}
@@ -644,7 +664,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                       <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorIntegral"))}</td>
                       <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorSemiIntegral"))}</td>
                       <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorEstendido"))}</td>
-                      <td className="py-1.5 pr-3 text-right">{fmtMoeda(somar("valorTotal"))}</td>
+                      <td className="py-1.5 pr-3 text-right text-brand-navy">{fmtMoeda(somar("valorTotal"))}</td>
                     </tr>
                   );
                 })()}

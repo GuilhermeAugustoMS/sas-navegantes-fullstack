@@ -18,8 +18,8 @@ export function TopBar({ title, subtitle, usuario, onUsuarioChange, children }: 
   return (
     <header className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-        {subtitle && <p className="text-xs text-slate-400 font-mono">{subtitle}</p>}
+        <h2 className="text-lg font-semibold text-brand-navy">{title}</h2>
+        {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
       </div>
 
       <div className="flex items-center gap-3">

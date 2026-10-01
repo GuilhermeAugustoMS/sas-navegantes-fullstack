@@ -97,7 +97,7 @@ export function PropostaGeneratorPage() {
 
   return (
     <div className="p-6 min-h-full">
-      <h2 className="text-lg font-semibold text-slate-900 mb-1">Gerador de Proposta</h2>
+      <h2 className="text-lg font-semibold text-brand-navy mb-1">Gerador de Proposta</h2>
       <p className="text-xs text-slate-500 mb-6">
         Simulação de parcelas a partir da Tabela de Preços vigente. O cálculo é feito pelo backend (CalculationEngine) —
         o Excel apenas armazena o resultado. Depois de confirmada, a proposta congela os valores praticados (Seção 22/54):
