@@ -54,3 +54,29 @@ export const MODULE_ICONS: Record<string, () => ReactNode> = {
   comercial: IconComercial,
   financeiro: IconFinanceiro,
 };
+
+/** Ícone da ação "Fazer Proposta" (criar do zero) -- ver ModuleMenuPage.tsx:
+ * as duas ações do Comercial (criar vs. gerenciar existente) precisam de
+ * ícone próprio, em vez de repetir o ícone do módulo em todo card da grade. */
+export function IconFazerProposta() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 shrink-0">
+      <path d="M6 3.5h8l4 4v13H6v-17z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M14 3.5v4h4" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M12 11v6M9 14h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Ícone da ação "Gerador de Proposta" (gerenciar/simular uma proposta já existente). */
+export function IconGeradorProposta() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 shrink-0">
+      <path d="M5 3.5h9l5 5v12H5v-17z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M14 3.5v5h5" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M8 13h8M8 16.5h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="11" cy="13" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="14.5" cy="16.5" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
