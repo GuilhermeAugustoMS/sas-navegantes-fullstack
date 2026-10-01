@@ -1,0 +1,89 @@
+/*
+ * Toggle switch (visual de interruptor), base: uiverse.io/Voxybuns/horrible-shrimp-47
+ * (CSS puro, licença MIT). Cores trocadas para a paleta da marca (ver
+ * --color-brand-* em src/index.css): âmbar ligado, cinza claro desligado --
+ * combinação confirmada com o usuário em 2026-09-30 (segue o precedente do
+ * item ativo da Sidebar, que também usa âmbar como destaque de "selecionado").
+ */
+.toggle-switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.toggle-switch {
+  --switch_width: 2em;
+  --switch_height: 1em;
+  --thumb_color: #ffffff;
+  --track_color: #e2e8f0;
+  --track_active_color: #f2a93c;
+  --outline_color: #12314c;
+  font-size: 17px;
+  position: relative;
+  display: inline-block;
+  width: var(--switch_width);
+  height: var(--switch_height);
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch-slider {
+  box-sizing: border-box;
+  border: 2px solid var(--outline_color);
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--track_color);
+  transition: 0.15s;
+  border-radius: var(--switch_height);
+}
+
+.toggle-switch-slider:before {
+  box-sizing: border-box;
+  position: absolute;
+  content: "";
+  height: var(--switch_height);
+  width: var(--switch_height);
+  border: 2px solid var(--outline_color);
+  border-radius: 100%;
+  left: -2px;
+  bottom: -2px;
+  background-color: var(--thumb_color);
+  transform: translateY(-0.2em);
+  box-shadow: 0 0.2em 0 var(--outline_color);
+  transition: 0.15s;
+}
+
+.toggle-switch input:checked + .toggle-switch-slider {
+  background-color: var(--track_active_color);
+}
+
+.toggle-switch input:focus-visible + .toggle-switch-slider {
+  box-shadow: 0 0 0 2px var(--track_active_color);
+}
+
+.toggle-switch input:hover + .toggle-switch-slider:before {
+  transform: translateY(-0.3em);
+  box-shadow: 0 0.3em 0 var(--outline_color);
+}
+
+.toggle-switch input:checked + .toggle-switch-slider:before {
+  transform: translateX(calc(var(--switch_width) - var(--switch_height))) translateY(-0.2em);
+}
+
+.toggle-switch input:hover:checked + .toggle-switch-slider:before {
+  transform: translateX(calc(var(--switch_width) - var(--switch_height))) translateY(-0.3em);
+  box-shadow: 0 0.3em 0 var(--outline_color);
+}
+
+.toggle-switch-text {
+  cursor: pointer;
+}

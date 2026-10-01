@@ -220,7 +220,7 @@ export function FazerPropostaPage() {
   );
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6 min-h-full">
       <h2 className="text-lg font-semibold text-slate-900 mb-1">Fazer Proposta</h2>
       <p className="text-xs text-slate-500 mb-6">
         Monte a Proposta do zero numa tela só: escolha ou crie o Aluno, escolha ou crie a Negociação, e a Proposta é

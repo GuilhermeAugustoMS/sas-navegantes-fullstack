@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ToggleSwitch } from "./ToggleSwitch";
 import logoNavegantes from "../assets/logo-navegantes.webp";
 import type { GerarParcelasInput, ParcelaProposta, RecordRow } from "../api/types";
 
@@ -403,22 +404,30 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
           </div>
 
           <div className="flex flex-wrap items-end gap-x-6 gap-y-2 mb-2">
-            <label className="text-xs text-slate-700 flex items-center gap-1.5">
-              <input type="checkbox" checked={necessidadeAlimentacao} onChange={(e) => setNecessidadeAlimentacao(e.target.checked)} />
-              Alimentação
-            </label>
-            <label className="text-xs text-slate-700 flex items-center gap-1.5">
-              <input type="checkbox" checked={contratouIntegral} onChange={(e) => setContratouIntegral(e.target.checked)} />
-              Integral
-            </label>
-            <label className="text-xs text-slate-700 flex items-center gap-1.5">
-              <input type="checkbox" checked={contratouSemiIntegral} onChange={(e) => setContratouSemiIntegral(e.target.checked)} />
-              Semi-Integral
-            </label>
-            <label className="text-xs text-slate-700 flex items-center gap-1.5">
-              <input type="checkbox" checked={contratouEstendido} onChange={(e) => setContratouEstendido(e.target.checked)} />
-              Estendido
-            </label>
+            <ToggleSwitch
+              className="text-xs text-slate-700"
+              checked={necessidadeAlimentacao}
+              onChange={setNecessidadeAlimentacao}
+              label="Alimentação"
+            />
+            <ToggleSwitch
+              className="text-xs text-slate-700"
+              checked={contratouIntegral}
+              onChange={setContratouIntegral}
+              label="Integral"
+            />
+            <ToggleSwitch
+              className="text-xs text-slate-700"
+              checked={contratouSemiIntegral}
+              onChange={setContratouSemiIntegral}
+              label="Semi-Integral"
+            />
+            <ToggleSwitch
+              className="text-xs text-slate-700"
+              checked={contratouEstendido}
+              onChange={setContratouEstendido}
+              label="Estendido"
+            />
           </div>
 
           <button
