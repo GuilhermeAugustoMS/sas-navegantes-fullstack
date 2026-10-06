@@ -42,6 +42,31 @@
  *   reduz automaticamente para o número de meses realmente disponíveis. A
  *   última parcela absorve a diferença de arredondamento, para a soma bater
  *   exatamente com o valor total da Tabela de Preços.
+ * - Quantidade de parcelas da Forma de Pagamento (campo `quantidadeParcelas-
+ *   FormaPagamento`, bug corrigido e comportamento confirmado com o usuário
+ *   em 2026-10-06 -- FormasPagamento.QTD_PARCELAS nunca era lido antes disso,
+ *   só MULTIPLICADOR_AJUSTE; selecionar "6 vezes" gerava a mesma quantidade
+ *   de parcelas que "12 vezes", só com um valor levemente diferente): quando
+ *   informado, a Mensalidade + Material Didático comum + Alimentação +
+ *   Extras (Integral/Semi-Integral/Estendido) do período restante do ano
+ *   letivo (mês de entrada até dezembro, com o rateio por dia do mês de
+ *   entrada já aplicado) deixam de ser cobradas 1-parcela-por-mês e passam a
+ *   ser somadas e divididas em N parcelas iguais (N = quantidadeParcelas-
+ *   FormaPagamento), decopladas da quantidade de meses restantes -- última
+ *   parcela absorve a diferença de arredondamento, mesmo padrão já usado no
+ *   M.D. de Inglês. A Entrada NUNCA entra nessa contagem N (continua sempre
+ *   separada, parcela 1ª, com suas próprias regras). O M.D. de Inglês também
+ *   continua com sua contagem própria e independente
+ *   (quantidadeParcelasMaterialIngles) -- se ela for maior que N, a lista de
+ *   parcelas cresce até o maior dos dois (max(N, parcelas do Inglês)), com
+ *   R$0 nos componentes que já esgotaram sua própria contagem. O mês/ano de
+ *   referência de cada uma dessas N parcelas é sequencial a partir do mês de
+ *   entrada (1 por parcela, virando o ano se necessário) -- não corresponde
+ *   mais a "este valor é de tal mês letivo", já que a cobrança foi decoplada
+ *   dos meses. Quando `quantidadeParcelasFormaPagamento` não é informado
+ *   (campo opcional), o comportamento é o legado acima (1 parcela por mês
+ *   letivo) -- preservado integralmente para não regredir nenhum chamador
+ *   existente da função.
  */
 
 export interface PrecoSerie {
@@ -67,6 +92,7 @@ export interface GerarParcelasInput {
   percentualDesconto?: number; // 0-100, incide só sobre a Mensalidade; default 0
   percentualDescontoEntrada?: number; // 0-25, incide só sobre a parcela de Entrada; default 0
   quantidadeParcelasMaterialIngles?: number; // 1-4, quantas mensalidades recebem o M.D. de Inglês; default 4
+  quantidadeParcelasFormaPagamento?: number; // N da Forma de Pagamento (QTD_PARCELAS); se ausente, mantém 1 parcela por mês letivo (legado)
 }
 
 export interface ParcelaCalculada {
@@ -91,6 +117,14 @@ function diasNoMes(ano: number, mes: number): number {
   return new Date(ano, mes, 0).getDate();
 }
 
+/** Divide um total em n parcelas iguais; a última absorve a diferença de arredondamento (mesmo padrão do M.D. de Inglês). */
+function dividirEmParcelas(total: number, n: number): number[] {
+  const base = round2(total / n);
+  const partes = new Array(n).fill(base);
+  partes[n - 1] = round2(total - base * (n - 1));
+  return partes;
+}
+
 /** Fração do mês a cobrar: 1 (integral) fora do mês de entrada; proporcional aos dias corridos restantes no mês de entrada. */
 function fracaoDoMes(mes: number, mesEntrada: number, diaEntrada: number, ano: number): number {
   if (mes !== mesEntrada) return 1;
@@ -111,6 +145,7 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
     percentualDesconto,
     percentualDescontoEntrada,
     quantidadeParcelasMaterialIngles,
+    quantidadeParcelasFormaPagamento,
   } = input;
 
   if (mesEntrada < 1 || mesEntrada > 12) {
@@ -154,31 +189,105 @@ export function gerarParcelas(input: GerarParcelasInput): ParcelaCalculada[] {
     valorTotal: valorEntrada,
   });
 
-  let numero = 2;
-  let indiceMes = 0;
+  // Caminho legado (Regra 52, preservado sem alteração): sem forma de
+  // pagamento com quantidade de parcelas informada, 1 parcela por mês
+  // letivo, cada mês com seu próprio rateio.
+  if (quantidadeParcelasFormaPagamento === undefined) {
+    let numero = 2;
+    let indiceMes = 0;
+    for (let mes = mesEntrada; mes <= 12; mes++) {
+      const fracao = fracaoDoMes(mes, mesEntrada, diaEntrada, ano);
+
+      const mensalidade = round2(precoSerie.MENSALIDADE * fracao * mult * fatorDesconto);
+      const material = round2(precoSerie.MATERIAL_DIDATICO * fracao * mult);
+      const materialIngles =
+        indiceMes >= qtdParcelasMaterialIngles
+          ? 0
+          : indiceMes === qtdParcelasMaterialIngles - 1
+            ? valorUltimaParcelaMaterialIngles
+            : valorParcelaMaterialInglesBase;
+      indiceMes++;
+      const alimentacao = necessidadeAlimentacao ? round2(precoSerie.ALIMENTACAO * fracao * mult) : 0;
+      const integral = round2(integralMes * fracao * mult);
+      const semiIntegral = round2(semiIntegralMes * fracao * mult);
+      const estendido = round2(estendidoMes * fracao * mult);
+
+      const total = round2(mensalidade + material + materialIngles + alimentacao + integral + semiIntegral + estendido);
+
+      parcelas.push({
+        numeroParcela: numero++,
+        mesReferencia: mes,
+        anoReferencia: ano,
+        valorMensalidade: mensalidade,
+        valorMaterialDidatico: material,
+        valorMaterialDidaticoIngles: materialIngles,
+        valorAlimentacao: alimentacao,
+        valorIntegral: integral,
+        valorSemiIntegral: semiIntegral,
+        valorEstendido: estendido,
+        valorTotal: total,
+      });
+    }
+    return parcelas;
+  }
+
+  // Novo caminho (confirmado com o usuário em 2026-10-06): a forma de
+  // pagamento define quantas parcelas (N) recebem o total acumulado de
+  // Mensalidade + Material comum + Alimentação + Extras do período restante
+  // do ano letivo -- decoplado de "uma por mês". O M.D. de Inglês mantém sua
+  // contagem própria (qtdParcelasMaterialIngles); a lista final tem
+  // max(N, qtdParcelasMaterialIngles) parcelas pós-Entrada.
+  const n = Math.max(1, Math.round(quantidadeParcelasFormaPagamento));
+
+  let totalMensalidade = 0;
+  let totalMaterial = 0;
+  let totalAlimentacao = 0;
+  let totalIntegral = 0;
+  let totalSemiIntegral = 0;
+  let totalEstendido = 0;
   for (let mes = mesEntrada; mes <= 12; mes++) {
     const fracao = fracaoDoMes(mes, mesEntrada, diaEntrada, ano);
+    totalMensalidade += round2(precoSerie.MENSALIDADE * fracao * mult * fatorDesconto);
+    totalMaterial += round2(precoSerie.MATERIAL_DIDATICO * fracao * mult);
+    totalAlimentacao += necessidadeAlimentacao ? round2(precoSerie.ALIMENTACAO * fracao * mult) : 0;
+    totalIntegral += round2(integralMes * fracao * mult);
+    totalSemiIntegral += round2(semiIntegralMes * fracao * mult);
+    totalEstendido += round2(estendidoMes * fracao * mult);
+  }
 
-    const mensalidade = round2(precoSerie.MENSALIDADE * fracao * mult * fatorDesconto);
-    const material = round2(precoSerie.MATERIAL_DIDATICO * fracao * mult);
+  const mensalidadePorParcela = dividirEmParcelas(round2(totalMensalidade), n);
+  const materialPorParcela = dividirEmParcelas(round2(totalMaterial), n);
+  const alimentacaoPorParcela = dividirEmParcelas(round2(totalAlimentacao), n);
+  const integralPorParcela = dividirEmParcelas(round2(totalIntegral), n);
+  const semiIntegralPorParcela = dividirEmParcelas(round2(totalSemiIntegral), n);
+  const estendidoPorParcela = dividirEmParcelas(round2(totalEstendido), n);
+
+  const totalParcelasPosEntrada = Math.max(n, qtdParcelasMaterialIngles);
+
+  let numero = 2;
+  for (let i = 0; i < totalParcelasPosEntrada; i++) {
+    const mesReferencia = ((mesEntrada - 1 + i) % 12) + 1;
+    const anoReferenciaParcela = ano + Math.floor((mesEntrada - 1 + i) / 12);
+
+    const mensalidade = i < n ? mensalidadePorParcela[i] : 0;
+    const material = i < n ? materialPorParcela[i] : 0;
+    const alimentacao = i < n ? alimentacaoPorParcela[i] : 0;
+    const integral = i < n ? integralPorParcela[i] : 0;
+    const semiIntegral = i < n ? semiIntegralPorParcela[i] : 0;
+    const estendido = i < n ? estendidoPorParcela[i] : 0;
     const materialIngles =
-      indiceMes >= qtdParcelasMaterialIngles
+      i >= qtdParcelasMaterialIngles
         ? 0
-        : indiceMes === qtdParcelasMaterialIngles - 1
+        : i === qtdParcelasMaterialIngles - 1
           ? valorUltimaParcelaMaterialIngles
           : valorParcelaMaterialInglesBase;
-    indiceMes++;
-    const alimentacao = necessidadeAlimentacao ? round2(precoSerie.ALIMENTACAO * fracao * mult) : 0;
-    const integral = round2(integralMes * fracao * mult);
-    const semiIntegral = round2(semiIntegralMes * fracao * mult);
-    const estendido = round2(estendidoMes * fracao * mult);
 
     const total = round2(mensalidade + material + materialIngles + alimentacao + integral + semiIntegral + estendido);
 
     parcelas.push({
       numeroParcela: numero++,
-      mesReferencia: mes,
-      anoReferencia: ano,
+      mesReferencia,
+      anoReferencia: anoReferenciaParcela,
       valorMensalidade: mensalidade,
       valorMaterialDidatico: material,
       valorMaterialDidaticoIngles: materialIngles,

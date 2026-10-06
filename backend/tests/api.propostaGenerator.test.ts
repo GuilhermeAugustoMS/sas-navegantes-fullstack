@@ -85,10 +85,16 @@ describe("Gerador de Proposta (motor de cálculo + persistência)", () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.parcelas).toHaveLength(11); // Entrada + março a dezembro
-    expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600, 2); // Entrada: só a mensalidade cheia
-    // Material de Inglês: 40 ÷ 4 parcelas padrão = 10 (não os 40 inteiros).
-    expect(res.body.parcelas[1].valorTotal).toBeCloseTo(1600 + 290 + 10 + 350, 2); // 1º mês normal
+    // Forma de pagamento "Boleto 12x" tem QTD_PARCELAS=12 (correção de
+    // 2026-10-06: antes esse campo nunca era lido). Entrada em março sobram
+    // 10 meses letivos (mar-dez), mas a quantidade de parcelas passa a ser a
+    // da forma de pagamento (12), decoplada dos meses -- Entrada + 12 = 13.
+    expect(res.body.parcelas).toHaveLength(13);
+    expect(res.body.parcelas[0].valorTotal).toBeCloseTo(1600, 2); // Entrada: só a mensalidade cheia, nunca afetada pela forma de pagamento
+    // Mensalidade+Material+Alimentação de 10 meses (mar-dez, sem rateio pois
+    // DIA_ENTRADA=1) somados e divididos em 12 parcelas: (1600+290+350)*10/12.
+    // Material de Inglês continua com sua própria contagem (40 ÷ 4 = 10).
+    expect(res.body.parcelas[1].valorTotal).toBeCloseTo(1876.67, 2);
 
     const check = await request(app).get(`/api/comercial/propostas/${proposta.body.ID_PROPOSTA}/parcelas`);
     expect(check.body).toEqual([]); // preview não grava nada

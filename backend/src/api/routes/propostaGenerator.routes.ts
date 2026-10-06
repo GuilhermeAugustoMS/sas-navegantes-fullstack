@@ -143,6 +143,18 @@ export function propostaGeneratorRouter(repo: Repository): Router {
         extrasContratados.push({ nome, valorMes: Number(programa.VALOR_MES) });
       }
 
+      // QTD_PARCELAS da Forma de Pagamento (correção de 2026-10-06): até então
+      // nunca era lido -- "6 vezes" e "12 vezes" geravam a mesma quantidade de
+      // parcelas (1 por mês letivo), só mudando ~1% pelo MULTIPLICADOR_AJUSTE.
+      // Agora dirige de fato quantas parcelas (N) recebem o total acumulado --
+      // ver comentário no topo do propostaEngine.ts. Ausente/invalido cai no
+      // comportamento legado (1 por mês), nunca quebra por falta do dado.
+      const qtdParcelasFormaPagamentoRaw = Number(formaPagamento!.QTD_PARCELAS);
+      const quantidadeParcelasFormaPagamento =
+        Number.isFinite(qtdParcelasFormaPagamentoRaw) && qtdParcelasFormaPagamentoRaw > 0
+          ? qtdParcelasFormaPagamentoRaw
+          : undefined;
+
       const parcelas = gerarParcelas({
         precoSerie: {
           MENSALIDADE: Number(tabelaPrecos!.MENSALIDADE),
@@ -159,6 +171,7 @@ export function propostaGeneratorRouter(repo: Repository): Router {
         percentualDesconto,
         percentualDescontoEntrada,
         quantidadeParcelasMaterialIngles,
+        quantidadeParcelasFormaPagamento,
       });
 
       if (preview) {

@@ -430,4 +430,148 @@ describe("CalculationEngine — gerarParcelas (Gerador de Proposta)", () => {
       expect(soma).toBe(100);
     });
   });
+
+  // Correção de 2026-10-06: FormasPagamento.QTD_PARCELAS nunca era lido --
+  // "6 vezes" e "12 vezes" geravam a mesma quantidade de parcelas (1 por mês
+  // letivo), só variando ~1% pelo MULTIPLICADOR_AJUSTE. Ver propostaEngine.ts
+  // para o comportamento completo confirmado com o usuário.
+  describe("quantidadeParcelasFormaPagamento (QTD_PARCELAS da Forma de Pagamento)", () => {
+    it("sem quantidadeParcelasFormaPagamento, mantém o comportamento legado (1 parcela por mês letivo)", () => {
+      const parcelas = gerarParcelas({
+        precoSerie: PRECO_SERIE,
+        multiplicadorFormaPagamento: 1.05,
+        anoReferencia: 2027,
+        mesEntrada: 2,
+        diaEntrada: 1,
+        necessidadeAlimentacao: true,
+        extrasContratados: [],
+      });
+
+      expect(parcelas).toHaveLength(12); // Entrada + fev-dez (11 meses)
+      expect(parcelas[1].mesReferencia).toBe(2);
+      expect(parcelas.at(-1)!.mesReferencia).toBe(12);
+    });
+
+    it("divide o total do período restante em N parcelas (forma de pagamento \"6 vezes\")", () => {
+      // Dados reais: FPG_000002 "CC (6 vezes)", QTD_PARCELAS=6, MULTIPLICADOR_AJUSTE=1.04.
+      const parcelas = gerarParcelas({
+        precoSerie: PRECO_SERIE,
+        multiplicadorFormaPagamento: 1.04,
+        anoReferencia: 2027,
+        mesEntrada: 2,
+        diaEntrada: 1,
+        necessidadeAlimentacao: true,
+        extrasContratados: [],
+        quantidadeParcelasFormaPagamento: 6,
+      });
+
+      // Entrada intacta: sempre a 1ª, sem multiplicador, nunca entra na contagem de N.
+      expect(parcelas[0]).toMatchObject({ numeroParcela: 1, mesReferencia: 2, valorTotal: 1600 });
+
+      // Entrada + 6 parcelas da forma de pagamento (não 11, que seria "1 por mês").
+      expect(parcelas).toHaveLength(7);
+      expect(parcelas.slice(1).map((p) => p.numeroParcela)).toEqual([2, 3, 4, 5, 6, 7]);
+
+      // Mensalidade de fev-dez (11 meses, sem rateio pois DIA_ENTRADA=1) com o
+      // multiplicador de 1.04, somada e dividida em 6 parcelas iguais (última
+      // absorve o resto): 1600*1.04*11 = 18304; 18304/6 = 3050.67 (resto na última).
+      const somaMensalidade = parcelas.slice(1).reduce((acc, p) => acc + p.valorMensalidade, 0);
+      expect(somaMensalidade).toBeCloseTo(18304, 2);
+      expect(parcelas[1].valorMensalidade).toBeCloseTo(3050.67, 2);
+      expect(parcelas.at(-1)!.valorMensalidade).toBeCloseTo(3050.65, 2); // última absorve o resto
+
+      // Material de Inglês continua com sua própria contagem (4 parcelas padrão),
+      // decoplada dos 6 da forma de pagamento.
+      expect(parcelas[1].valorMaterialDidaticoIngles).toBe(10);
+      expect(parcelas[4].valorMaterialDidaticoIngles).toBe(10); // 4ª parcela de Inglês (índice 3)
+      expect(parcelas[5].valorMaterialDidaticoIngles).toBe(0); // já esgotou as 4 parcelas de Inglês
+    });
+
+    it('"12 vezes" não é mais "1 por mês coincidindo com o calendário" -- gera 12 parcelas decopladas dos meses', () => {
+      // Entrada em fevereiro sobram 11 meses letivos (fev-dez); antes, "12 vezes"
+      // só "parecia certo" nesse caso por coincidência (Entrada + 11 = 12). Com a
+      // correção, QTD_PARCELAS=12 sempre gera 12 parcelas de verdade, não 11.
+      const parcelas = gerarParcelas({
+        precoSerie: PRECO_SERIE,
+        multiplicadorFormaPagamento: 1,
+        anoReferencia: 2027,
+        mesEntrada: 2,
+        diaEntrada: 1,
+        necessidadeAlimentacao: false,
+        extrasContratados: [],
+        quantidadeParcelasFormaPagamento: 12,
+      });
+
+      expect(parcelas).toHaveLength(13); // Entrada + 12 (não mais Entrada + 11)
+      const somaMensalidade = parcelas.slice(1).reduce((acc, p) => acc + p.valorMensalidade, 0);
+      expect(somaMensalidade).toBeCloseTo(1600 * 11, 2); // mesmo total de antes (11 meses de mensalidade)
+      expect(parcelas[1].valorMensalidade).toBeCloseTo(1466.67, 2); // 17600 / 12, não mais 1600 por mês
+      expect(parcelas.at(-1)!.valorMensalidade).toBeCloseTo(1466.63, 2);
+    });
+
+    it("a última parcela do bloco de N absorve a diferença de arredondamento, para a soma bater com o total", () => {
+      const parcelas = gerarParcelas({
+        precoSerie: { MENSALIDADE: 1600, MATERIAL_DIDATICO: 0, MATERIAL_DIDATICO_INGLES: 0, ALIMENTACAO: 0 },
+        multiplicadorFormaPagamento: 1,
+        anoReferencia: 2027,
+        mesEntrada: 1,
+        diaEntrada: 1,
+        necessidadeAlimentacao: false,
+        extrasContratados: [],
+        quantidadeParcelasFormaPagamento: 7,
+      });
+
+      expect(parcelas).toHaveLength(8); // Entrada + 7
+      const bloco = parcelas.slice(1);
+      expect(bloco.slice(0, 6).every((p) => p.valorMensalidade === 2742.86)).toBe(true);
+      expect(bloco.at(-1)!.valorMensalidade).toBe(2742.84); // última absorve o resto
+      const soma = bloco.reduce((acc, p) => acc + p.valorMensalidade, 0);
+      expect(soma).toBe(19200); // 1600 * 12 meses (jan-dez)
+    });
+
+    it("quando N é menor que a quantidade de parcelas do Material de Inglês, a lista cresce até o maior dos dois", () => {
+      // "À vista" (N=1) com Material de Inglês ainda em 4x: a cobrança do
+      // restante do ano vem toda na 1ª parcela, mas o Inglês continua em 4
+      // parcelas -- a lista tem que ter espaço para as 4.
+      const parcelas = gerarParcelas({
+        precoSerie: PRECO_SERIE,
+        multiplicadorFormaPagamento: 1,
+        anoReferencia: 2027,
+        mesEntrada: 1,
+        diaEntrada: 1,
+        necessidadeAlimentacao: false,
+        extrasContratados: [],
+        quantidadeParcelasFormaPagamento: 1,
+        quantidadeParcelasMaterialIngles: 4,
+      });
+
+      expect(parcelas).toHaveLength(5); // Entrada + max(1, 4) = 5
+      expect(parcelas[1].valorMensalidade).toBeCloseTo(1600 * 12, 2); // tudo numa parcela só
+      expect(parcelas[1].valorMaterialDidaticoIngles).toBe(10);
+      expect(parcelas[2].valorMensalidade).toBe(0); // N=1 já esgotou a mensalidade
+      expect(parcelas[2].valorMaterialDidaticoIngles).toBe(10); // mas o Inglês continua
+      expect(parcelas[4].valorMaterialDidaticoIngles).toBe(10); // 4ª e última parcela de Inglês
+    });
+
+    it("mês/ano de referência das N parcelas são sequenciais a partir do mês de entrada, virando o ano se necessário", () => {
+      const parcelas = gerarParcelas({
+        precoSerie: { MENSALIDADE: 1600, MATERIAL_DIDATICO: 0, MATERIAL_DIDATICO_INGLES: 0, ALIMENTACAO: 0 },
+        multiplicadorFormaPagamento: 1,
+        anoReferencia: 2027,
+        mesEntrada: 11,
+        diaEntrada: 1,
+        necessidadeAlimentacao: false,
+        extrasContratados: [],
+        quantidadeParcelasFormaPagamento: 4,
+        quantidadeParcelasMaterialIngles: 1,
+      });
+
+      expect(parcelas.slice(1).map((p) => [p.mesReferencia, p.anoReferencia])).toEqual([
+        [11, 2027],
+        [12, 2027],
+        [1, 2028],
+        [2, 2028],
+      ]);
+    });
+  });
 });
