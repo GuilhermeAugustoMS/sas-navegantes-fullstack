@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { CustomSelect } from "./CustomSelect";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { HamburgerToggleIcon } from "./HamburgerToggleIcon";
 import { fieldLabel } from "../lib/fieldLabels";
@@ -377,32 +378,26 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Forma de Pagamento</label>
-              <select
+              <CustomSelect
+                ariaLabel="Forma de Pagamento"
                 value={idFormaPagamento}
-                onChange={(e) => setIdFormaPagamento(e.target.value)}
-                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
-              >
-                <option value="">Selecione...</option>
-                {formasPagamento.map((f) => (
-                  <option key={String(f.ID_FORMA_PAGAMENTO)} value={String(f.ID_FORMA_PAGAMENTO)}>
-                    {String(f.NOME)}
-                  </option>
-                ))}
-              </select>
+                onChange={setIdFormaPagamento}
+                options={formasPagamento.map((f) => ({
+                  value: String(f.ID_FORMA_PAGAMENTO),
+                  label: String(f.NOME),
+                }))}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Mês de entrada</label>
-                <select
-                  value={mesEntrada}
-                  onChange={(e) => setMesEntrada(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
-                >
-                  {MESES.map((m, i) => (
-                    <option key={m} value={i + 1}>{m}</option>
-                  ))}
-                </select>
+                <CustomSelect
+                  ariaLabel="Mês de entrada"
+                  value={String(mesEntrada)}
+                  onChange={(v) => setMesEntrada(Number(v))}
+                  options={MESES.map((m, i) => ({ value: String(i + 1), label: m }))}
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Dia de entrada</label>
@@ -412,7 +407,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                   max={31}
                   value={diaEntrada}
                   onChange={(e) => setDiaEntrada(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm transition-colors hover:border-slate-400 focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
                 />
               </div>
             </div>
@@ -423,7 +418,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                 type="date"
                 value={dataPagamentoEntrada}
                 onChange={(e) => setDataPagamentoEntrada(e.target.value)}
-                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm transition-colors hover:border-slate-400 focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
               />
             </div>
           </div>
