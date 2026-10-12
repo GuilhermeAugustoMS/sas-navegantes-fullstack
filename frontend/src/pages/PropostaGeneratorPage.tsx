@@ -105,7 +105,7 @@ export function PropostaGeneratorPage() {
         na barra lateral.
       </p>
 
-      <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
+      <div className="max-w-2xl bg-white border border-slate-200 rounded-lg p-5 mb-6">
         <label className="block text-xs font-medium text-slate-600 mb-1">Proposta</label>
         <select
           value={propostaId}

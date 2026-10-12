@@ -241,87 +241,89 @@ export function FazerPropostaPage() {
         Proposta" na barra lateral.
       </p>
 
-      <WizardProgressTrail steps={wizardSteps} />
+      <div className="max-w-2xl">
+        <WizardProgressTrail steps={wizardSteps} />
 
-      {/* Aluno */}
-      <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-        <label className="block text-xs font-medium text-slate-600 mb-1">Aluno</label>
-        <div className="flex gap-2">
-          <select
-            value={alunoId}
-            onChange={(e) => selecionarAluno(e.target.value)}
-            className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm"
-          >
-            <option value="">Selecione um aluno...</option>
-            {alunos.map((a) => (
-              <option key={String(a.ID_ALUNO)} value={String(a.ID_ALUNO)}>
-                {String(a.NOME)}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => setModalAberto("novo-aluno")}
-            className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
-          >
-            + Novo Aluno
-          </button>
-        </div>
-      </div>
-
-      {/* Negociação */}
-      {alunoId && (
+        {/* Aluno */}
         <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Negociação</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Aluno</label>
           <div className="flex gap-2">
             <select
-              value={negociacaoId}
-              onChange={(e) => selecionarNegociacao(e.target.value)}
+              value={alunoId}
+              onChange={(e) => selecionarAluno(e.target.value)}
               className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm"
             >
-              <option value="">Selecione uma negociação...</option>
-              {negociacoesDoAluno.map((n) => (
-                <option key={String(n.ID_NEGOCIACAO)} value={String(n.ID_NEGOCIACAO)}>
-                  {resolverLabelNegociacao(n)}
+              <option value="">Selecione um aluno...</option>
+              {alunos.map((a) => (
+                <option key={String(a.ID_ALUNO)} value={String(a.ID_ALUNO)}>
+                  {String(a.NOME)}
                 </option>
               ))}
             </select>
             <button
-              onClick={() => setModalAberto("nova-negociacao")}
+              onClick={() => setModalAberto("novo-aluno")}
               className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
             >
-              + Nova Negociação
+              + Novo Aluno
             </button>
           </div>
         </div>
-      )}
 
-      {/* Série & Tabela de Preços (derivado, readonly) */}
-      {negociacaoId && (
-        <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Série</label>
-          <p className="text-sm text-slate-800 mb-2">{serieAtual ? String(serieAtual.NOME) : "—"}</p>
-          {tabelaPrecoAtiva ? (
-            <div className="grid grid-cols-4 gap-x-4 text-xs text-slate-600">
-              <p><span className="font-medium text-slate-500">Mensalidade:</span> {String(tabelaPrecoAtiva.MENSALIDADE)}</p>
-              <p><span className="font-medium text-slate-500">Mat. Didático:</span> {String(tabelaPrecoAtiva.MATERIAL_DIDATICO)}</p>
-              <p><span className="font-medium text-slate-500">Mat. Inglês:</span> {String(tabelaPrecoAtiva.MATERIAL_DIDATICO_INGLES)}</p>
-              <p><span className="font-medium text-slate-500">Alimentação:</span> {String(tabelaPrecoAtiva.ALIMENTACAO)}</p>
+        {/* Negociação */}
+        {alunoId && (
+          <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Negociação</label>
+            <div className="flex gap-2">
+              <select
+                value={negociacaoId}
+                onChange={(e) => selecionarNegociacao(e.target.value)}
+                className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm"
+              >
+                <option value="">Selecione uma negociação...</option>
+                {negociacoesDoAluno.map((n) => (
+                  <option key={String(n.ID_NEGOCIACAO)} value={String(n.ID_NEGOCIACAO)}>
+                    {resolverLabelNegociacao(n)}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => setModalAberto("nova-negociacao")}
+                className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              >
+                + Nova Negociação
+              </button>
             </div>
-          ) : (
-            <p className="text-xs text-amber-700">Nenhuma Tabela de Preços ativa encontrada para esta série.</p>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Proposta (auto-criada) */}
-      {negociacaoId && (
-        <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Proposta</label>
-          {criandoProposta && <p className="text-sm text-slate-500">Criando proposta...</p>}
-          {erroProposta && <p className="text-sm text-red-700">{erroProposta}</p>}
-          {propostaId && !criandoProposta && <p className="text-sm text-slate-800">Proposta Nº {propostaId} criada.</p>}
-        </div>
-      )}
+        {/* Série & Tabela de Preços (derivado, readonly) */}
+        {negociacaoId && (
+          <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Série</label>
+            <p className="text-sm text-slate-800 mb-2">{serieAtual ? String(serieAtual.NOME) : "—"}</p>
+            {tabelaPrecoAtiva ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-slate-600">
+                <p><span className="font-medium text-slate-500">Mensalidade:</span> {String(tabelaPrecoAtiva.MENSALIDADE)}</p>
+                <p><span className="font-medium text-slate-500">Mat. Didático:</span> {String(tabelaPrecoAtiva.MATERIAL_DIDATICO)}</p>
+                <p><span className="font-medium text-slate-500">Mat. Inglês:</span> {String(tabelaPrecoAtiva.MATERIAL_DIDATICO_INGLES)}</p>
+                <p><span className="font-medium text-slate-500">Alimentação:</span> {String(tabelaPrecoAtiva.ALIMENTACAO)}</p>
+              </div>
+            ) : (
+              <p className="text-xs text-amber-700">Nenhuma Tabela de Preços ativa encontrada para esta série.</p>
+            )}
+          </div>
+        )}
+
+        {/* Proposta (auto-criada) */}
+        {negociacaoId && (
+          <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Proposta</label>
+            {criandoProposta && <p className="text-sm text-slate-500">Criando proposta...</p>}
+            {erroProposta && <p className="text-sm text-red-700">{erroProposta}</p>}
+            {propostaId && !criandoProposta && <p className="text-sm text-slate-800">Proposta Nº {propostaId} criada.</p>}
+          </div>
+        )}
+      </div>
 
       {/* Simulação/Confirmação + pós-confirmação */}
       {propostaId &&
