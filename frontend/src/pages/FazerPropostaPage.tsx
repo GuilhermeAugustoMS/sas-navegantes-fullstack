@@ -4,6 +4,7 @@ import { useUsuario } from "../hooks/useUsuario";
 import { api } from "../api/client";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { PropostaSimulacaoPanel } from "../components/PropostaSimulacaoPanel";
+import { WizardProgressTrail, type WizardStep } from "../components/WizardProgressTrail";
 import { encontrarPropostaRascunho } from "../lib/propostaRascunho";
 import type { RecordRow } from "../api/types";
 
@@ -207,6 +208,18 @@ export function FazerPropostaPage() {
     );
   }
 
+  // Progresso real do wizard (2026-10-12): "Série"/"Proposta" (④ antigo) eram
+  // derivados automaticamente no exato instante em que a Negociação é
+  // escolhida (sem ação própria do usuário), então não viram passo -- os 4
+  // marcos sequenciais de verdade são Aluno -> Negociação -> Proposta
+  // (criação assíncrona) -> Confirmação (parcelas geradas).
+  const wizardSteps: WizardStep[] = [
+    { label: "Aluno", status: alunoId ? "done" : "current" },
+    { label: "Negociação", status: negociacaoId ? "done" : alunoId ? "current" : "pending" },
+    { label: "Proposta", status: propostaId ? "done" : negociacaoId ? "current" : "pending" },
+    { label: "Confirmação", status: modoPosConfirmacao ? "done" : propostaId ? "current" : "pending" },
+  ];
+
   const painelSimulacao = propostaId && (
     <PropostaSimulacaoPanel
       key={propostaId}
@@ -228,9 +241,11 @@ export function FazerPropostaPage() {
         Proposta" na barra lateral.
       </p>
 
-      {/* ① Aluno */}
+      <WizardProgressTrail steps={wizardSteps} />
+
+      {/* Aluno */}
       <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-        <label className="block text-xs font-medium text-slate-600 mb-1">① Aluno</label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">Aluno</label>
         <div className="flex gap-2">
           <select
             value={alunoId}
@@ -253,10 +268,10 @@ export function FazerPropostaPage() {
         </div>
       </div>
 
-      {/* ② Negociação */}
+      {/* Negociação */}
       {alunoId && (
         <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-          <label className="block text-xs font-medium text-slate-600 mb-1">② Negociação</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Negociação</label>
           <div className="flex gap-2">
             <select
               value={negociacaoId}
@@ -280,10 +295,10 @@ export function FazerPropostaPage() {
         </div>
       )}
 
-      {/* ③ Série & Tabela de Preços (derivado, readonly) */}
+      {/* Série & Tabela de Preços (derivado, readonly) */}
       {negociacaoId && (
         <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-          <label className="block text-xs font-medium text-slate-600 mb-1">③ Série</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Série</label>
           <p className="text-sm text-slate-800 mb-2">{serieAtual ? String(serieAtual.NOME) : "—"}</p>
           {tabelaPrecoAtiva ? (
             <div className="grid grid-cols-4 gap-x-4 text-xs text-slate-600">
@@ -298,17 +313,17 @@ export function FazerPropostaPage() {
         </div>
       )}
 
-      {/* ④ Proposta (auto-criada) */}
+      {/* Proposta (auto-criada) */}
       {negociacaoId && (
         <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
-          <label className="block text-xs font-medium text-slate-600 mb-1">④ Proposta</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Proposta</label>
           {criandoProposta && <p className="text-sm text-slate-500">Criando proposta...</p>}
           {erroProposta && <p className="text-sm text-red-700">{erroProposta}</p>}
           {propostaId && !criandoProposta && <p className="text-sm text-slate-800">Proposta Nº {propostaId} criada.</p>}
         </div>
       )}
 
-      {/* ⑤/⑥ Simulação/Confirmação + pós-confirmação */}
+      {/* Simulação/Confirmação + pós-confirmação */}
       {propostaId &&
         (modoPosConfirmacao ? (
           <div className="grid grid-cols-[260px_1fr] gap-6">
