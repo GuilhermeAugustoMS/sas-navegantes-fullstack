@@ -7,6 +7,8 @@ interface Props {
   onUsuarioChange: (v: string) => void;
   /** Controles específicos da tela (ex.: "mostrar inativos", botão "+ Novo"), renderizados antes do usuário. */
   children?: ReactNode;
+  /** Abre o drawer da sidebar em telas estreitas (< md) -- ver Sidebar.tsx. */
+  onAbrirMenu?: () => void;
 }
 
 /**
@@ -14,15 +16,29 @@ interface Props {
  * A busca é só visual por enquanto -- não existe uma busca global
  * implementada no sistema ainda, então o campo fica desabilitado.
  */
-export function TopBar({ title, subtitle, usuario, onUsuarioChange, children }: Props) {
+export function TopBar({ title, subtitle, usuario, onUsuarioChange, children, onAbrirMenu }: Props) {
   return (
-    <header className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
-      <div>
-        <h2 className="text-lg font-semibold text-brand-navy">{title}</h2>
-        {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+    <header className="border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between bg-white sticky top-0 z-10 gap-3">
+      <div className="flex items-center gap-2 min-w-0">
+        {onAbrirMenu && (
+          <button
+            type="button"
+            onClick={onAbrirMenu}
+            aria-label="Abrir menu"
+            className="md:hidden h-8 w-8 shrink-0 flex items-center justify-center rounded-md text-slate-500 hover:text-brand-blue-dark hover:bg-slate-100"
+          >
+            <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+              <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-brand-navy truncate">{title}</h2>
+          {subtitle && <p className="text-xs text-slate-400 truncate">{subtitle}</p>}
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative hidden sm:block">
           <svg
             viewBox="0 0 20 20"
@@ -50,7 +66,7 @@ export function TopBar({ title, subtitle, usuario, onUsuarioChange, children }: 
           <input
             value={usuario}
             onChange={(e) => onUsuarioChange(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1 text-xs w-28"
+            className="border border-slate-300 rounded px-2 py-1 text-xs w-20 sm:w-28"
             title="Usuário (registrado na auditoria de cada alteração)"
           />
         </div>

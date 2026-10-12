@@ -20,9 +20,29 @@ import { api, ApiError, MODULES } from "../api/client";
 import { hasAtivo } from "../lib/records";
 import type { RecordRow } from "../api/types";
 
+/** Barra mobile mínima (só o botão de abrir o menu) para as telas que não
+ * usam TopBar (Fazer/Gerador de Proposta têm título e descrição próprios). */
+function BarraMobile({ onAbrirMenu }: { onAbrirMenu: () => void }) {
+  return (
+    <div className="md:hidden px-4 pt-3">
+      <button
+        type="button"
+        onClick={onAbrirMenu}
+        aria-label="Abrir menu"
+        className="h-9 w-9 flex items-center justify-center rounded-md text-slate-500 hover:text-brand-blue-dark hover:bg-slate-100"
+      >
+        <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export function CrudPage() {
   const { resources, loading, error, resourceBySlug, invalidate } = useCatalog();
   const [usuario, setUsuario] = useUsuario();
+  const [sidebarAberta, setSidebarAberta] = useState(false);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [rows, setRows] = useState<RecordRow[]>([]);
   const [rowsLoading, setRowsLoading] = useState(false);
@@ -104,12 +124,24 @@ export function CrudPage() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar resources={resources} activeSlug={activeSlug} onSelect={setActiveSlug} />
+      <Sidebar
+        resources={resources}
+        activeSlug={activeSlug}
+        onSelect={setActiveSlug}
+        open={sidebarAberta}
+        onClose={() => setSidebarAberta(false)}
+      />
 
       <main className="flex-1 overflow-y-auto">
         {isDashboard ? (
           <>
-            <TopBar title="Dashboard" subtitle="Visão geral do sistema" usuario={usuario} onUsuarioChange={setUsuario} />
+            <TopBar
+              title="Dashboard"
+              subtitle="Visão geral do sistema"
+              usuario={usuario}
+              onUsuarioChange={setUsuario}
+              onAbrirMenu={() => setSidebarAberta(true)}
+            />
             <div className="p-6">
               <DashboardPage />
             </div>
@@ -120,15 +152,22 @@ export function CrudPage() {
               title={MODULES.find((m) => m.key === activeModuleKey)?.label ?? ""}
               usuario={usuario}
               onUsuarioChange={setUsuario}
+              onAbrirMenu={() => setSidebarAberta(true)}
             />
             <div className="p-6">
               <ModuleMenuPage moduleKey={activeModuleKey!} resources={resources} onSelect={setActiveSlug} />
             </div>
           </>
         ) : isGeradorProposta ? (
-          <PropostaGeneratorPage />
+          <>
+            <BarraMobile onAbrirMenu={() => setSidebarAberta(true)} />
+            <PropostaGeneratorPage />
+          </>
         ) : isFazerProposta ? (
-          <FazerPropostaPage />
+          <>
+            <BarraMobile onAbrirMenu={() => setSidebarAberta(true)} />
+            <FazerPropostaPage />
+          </>
         ) : (
           <>
             <TopBar
@@ -136,6 +175,7 @@ export function CrudPage() {
               subtitle={resource ? MODULES.find((m) => m.apiBase === resource.apiBase)?.label : undefined}
               usuario={usuario}
               onUsuarioChange={setUsuario}
+              onAbrirMenu={() => setSidebarAberta(true)}
             >
               {showAtivo && (
                 <label className="text-xs text-slate-600 flex items-center gap-1">

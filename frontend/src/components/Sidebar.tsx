@@ -34,6 +34,10 @@ interface Props {
   resources: ResourceDef[];
   activeSlug: string | null;
   onSelect: (slug: string) => void;
+  /** Controle do drawer em telas estreitas (< md) -- sempre visível a partir
+   * de md, independente destes props (ver classes `md:` abaixo). */
+  open: boolean;
+  onClose: () => void;
 }
 
 /**
@@ -49,8 +53,15 @@ interface Props {
  * 2026-09-07: item ativo vira uma pílula com ícone/texto sobre o fundo navy
  * da identidade da escola. Cor da pílula ajustada para o âmbar da logo
  * (--color-brand-amber) por pedido do usuário -- era branca antes.
+ *
+ * Responsividade mobile (2026-10-12, diagnóstico de design): abaixo de `md`
+ * (768px) a sidebar vira um drawer off-canvas (some atrás da borda esquerda,
+ * entra por cima do conteúdo com um fundo escurecido atrás) em vez de ficar
+ * sempre fixa ocupando 256px de uma tela de ~390px -- era isso que fazia
+ * texto/selects quebrarem em todas as telas no celular. De `md` pra cima o
+ * comportamento é exatamente o de antes (sempre visível, estática).
  */
-export function Sidebar({ resources, activeSlug, onSelect }: Props) {
+export function Sidebar({ resources, activeSlug, onSelect, open, onClose }: Props) {
   const activeResource = resources.find((r) => r.slug === activeSlug);
   const isComercialAtivo =
     activeSlug === GERADOR_PROPOSTA_SLUG || activeSlug === FAZER_PROPOSTA_SLUG || activeResource?.apiBase === "/api/comercial";
@@ -67,39 +78,68 @@ export function Sidebar({ resources, activeSlug, onSelect }: Props) {
     }`;
   }
 
-  return (
-    <nav className="w-64 shrink-0 bg-brand-navy h-full overflow-y-auto flex flex-col">
-      <div className="px-4 pt-6 pb-5 border-b border-white/10 flex flex-col items-center text-center gap-2">
-        <img src={logoNavegantes} alt="Sas Navegantes" className="h-14 w-14 rounded-full bg-white/95 p-1.5" />
-        <div>
-          <h1 className="text-sm font-bold text-white tracking-wide">SAS NAVEGANTES</h1>
-          <p className="text-xs text-white/60">Gestão Escolar</p>
-        </div>
-      </div>
+  function selecionar(slug: string) {
+    onSelect(slug);
+    onClose();
+  }
 
-      <ul className="py-3 px-3 space-y-1">
-        <li>
-          <button onClick={() => onSelect(DASHBOARD_SLUG)} className={itemClasses(activeSlug === DASHBOARD_SLUG)}>
-            <IconDashboard />
-            Dashboard
+  return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/50 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+
+      <nav
+        className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-brand-navy h-full overflow-y-auto flex flex-col transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="px-4 pt-6 pb-5 border-b border-white/10 flex flex-col items-center text-center gap-2 relative">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar menu"
+            className="md:hidden absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-md text-white/70 hover:text-white hover:bg-white/10"
+          >
+            <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+              <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
           </button>
-        </li>
-        {MODULES.map((mod) => {
-          const moduleResources = resources.filter((r) => r.apiBase === mod.apiBase);
-          const isComercial = mod.key === "comercial";
-          if (moduleResources.length === 0 && !isComercial) return null;
-          const ativo = isModuloAtivo(mod);
-          const Icone = MODULE_ICONS[mod.key];
-          return (
-            <li key={mod.key}>
-              <button onClick={() => onSelect(moduleMenuSlug(mod.key))} className={itemClasses(ativo)}>
-                {Icone && <Icone />}
-                {mod.label}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+          <img src={logoNavegantes} alt="Sas Navegantes" className="h-14 w-14 rounded-full bg-white/95 p-1.5" />
+          <div>
+            <h1 className="text-sm font-bold text-white tracking-wide">SAS NAVEGANTES</h1>
+            <p className="text-xs text-white/60">Gestão Escolar</p>
+          </div>
+        </div>
+
+        <ul className="py-3 px-3 space-y-1">
+          <li>
+            <button onClick={() => selecionar(DASHBOARD_SLUG)} className={itemClasses(activeSlug === DASHBOARD_SLUG)}>
+              <IconDashboard />
+              Dashboard
+            </button>
+          </li>
+          {MODULES.map((mod) => {
+            const moduleResources = resources.filter((r) => r.apiBase === mod.apiBase);
+            const isComercial = mod.key === "comercial";
+            if (moduleResources.length === 0 && !isComercial) return null;
+            const ativo = isModuloAtivo(mod);
+            const Icone = MODULE_ICONS[mod.key];
+            return (
+              <li key={mod.key}>
+                <button onClick={() => selecionar(moduleMenuSlug(mod.key))} className={itemClasses(ativo)}>
+                  {Icone && <Icone />}
+                  {mod.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </>
   );
 }
