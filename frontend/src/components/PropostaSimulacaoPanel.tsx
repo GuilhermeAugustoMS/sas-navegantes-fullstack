@@ -3,6 +3,7 @@ import { api, ApiError } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CustomSelect } from "./CustomSelect";
+import { CalendarField } from "./CalendarField";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { HamburgerToggleIcon } from "./HamburgerToggleIcon";
 import { fieldLabel } from "../lib/fieldLabels";
@@ -414,11 +415,10 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
 
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Data de pagamento da Entrada</label>
-              <input
-                type="date"
+              <CalendarField
+                ariaLabel="Data de pagamento da Entrada"
                 value={dataPagamentoEntrada}
-                onChange={(e) => setDataPagamentoEntrada(e.target.value)}
-                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm transition-colors hover:border-slate-400 focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
+                onChange={setDataPagamentoEntrada}
               />
             </div>
           </div>
