@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { PropostaSimulacaoPanel } from "../components/PropostaSimulacaoPanel";
 import { WizardProgressTrail, type WizardStep } from "../components/WizardProgressTrail";
+import { PressButton } from "../components/PressButton";
 import { encontrarPropostaRascunho } from "../lib/propostaRascunho";
 import type { RecordRow } from "../api/types";
 
@@ -260,12 +261,7 @@ export function FazerPropostaPage() {
                 </option>
               ))}
             </select>
-            <button
-              onClick={() => setModalAberto("novo-aluno")}
-              className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
-            >
-              + Novo Aluno
-            </button>
+            <PressButton onClick={() => setModalAberto("novo-aluno")}>+ Novo Aluno</PressButton>
           </div>
         </div>
 
@@ -286,12 +282,7 @@ export function FazerPropostaPage() {
                   </option>
                 ))}
               </select>
-              <button
-                onClick={() => setModalAberto("nova-negociacao")}
-                className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
-              >
-                + Nova Negociação
-              </button>
+              <PressButton onClick={() => setModalAberto("nova-negociacao")}>+ Nova Negociação</PressButton>
             </div>
           </div>
         )}
