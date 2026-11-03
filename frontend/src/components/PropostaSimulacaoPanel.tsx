@@ -562,7 +562,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                       step="0.01"
                       value={percentualDesconto}
                       onChange={(e) => setPercentualDesconto(Number(e.target.value))}
-                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm transition-colors hover:border-slate-400 focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -574,7 +574,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                       step="0.01"
                       value={percentualDescontoEntrada}
                       onChange={(e) => setPercentualDescontoEntrada(Number(e.target.value))}
-                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                      className="w-24 border border-slate-300 rounded px-2 py-1.5 text-sm transition-colors hover:border-slate-400 focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -586,7 +586,7 @@ export function PropostaSimulacaoPanel({ propostaId, formasPagamento, usuario, a
                       step={1}
                       value={quantidadeParcelasMaterialIngles}
                       onChange={(e) => setQuantidadeParcelasMaterialIngles(Number(e.target.value))}
-                      className="w-16 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                      className="w-16 border border-slate-300 rounded px-2 py-1.5 text-sm transition-colors hover:border-slate-400 focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
                     />
                   </div>
                   {simulando && <span className="text-xs text-slate-400">recalculando...</span>}

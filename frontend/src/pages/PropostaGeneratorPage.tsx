@@ -3,6 +3,7 @@ import { useCatalog } from "../context/CatalogContext";
 import { useUsuario } from "../hooks/useUsuario";
 import { api } from "../api/client";
 import { PropostaSimulacaoPanel } from "../components/PropostaSimulacaoPanel";
+import { CustomSelect } from "../components/CustomSelect";
 import type { RecordRow } from "../api/types";
 
 /**
@@ -107,18 +108,13 @@ export function PropostaGeneratorPage() {
 
       <div className="max-w-2xl bg-white border border-slate-200 rounded-lg p-5 mb-6">
         <label className="block text-xs font-medium text-slate-600 mb-1">Proposta</label>
-        <select
+        <CustomSelect
+          ariaLabel="Proposta"
           value={propostaId}
-          onChange={(e) => setPropostaId(e.target.value)}
-          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
-        >
-          <option value="">Selecione uma proposta...</option>
-          {propostas.map((p) => (
-            <option key={String(p.ID_PROPOSTA)} value={String(p.ID_PROPOSTA)}>
-              {resolverLabel(p)}
-            </option>
-          ))}
-        </select>
+          onChange={setPropostaId}
+          placeholder="Selecione uma proposta..."
+          options={propostas.map((p) => ({ value: String(p.ID_PROPOSTA), label: resolverLabel(p) }))}
+        />
 
         {propostaSelecionada && (
           <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600">

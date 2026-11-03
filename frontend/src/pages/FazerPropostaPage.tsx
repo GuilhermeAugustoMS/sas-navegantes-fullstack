@@ -5,6 +5,8 @@ import { api } from "../api/client";
 import { RecordFormModal } from "../components/RecordFormModal";
 import { PropostaSimulacaoPanel } from "../components/PropostaSimulacaoPanel";
 import { WizardProgressTrail, type WizardStep } from "../components/WizardProgressTrail";
+import { PressButton } from "../components/PressButton";
+import { CustomSelect } from "../components/CustomSelect";
 import { encontrarPropostaRascunho } from "../lib/propostaRascunho";
 import type { RecordRow } from "../api/types";
 
@@ -248,24 +250,15 @@ export function FazerPropostaPage() {
         <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
           <label className="block text-xs font-medium text-slate-600 mb-1">Aluno</label>
           <div className="flex gap-2">
-            <select
+            <CustomSelect
+              ariaLabel="Aluno"
+              className="flex-1"
               value={alunoId}
-              onChange={(e) => selecionarAluno(e.target.value)}
-              className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm"
-            >
-              <option value="">Selecione um aluno...</option>
-              {alunos.map((a) => (
-                <option key={String(a.ID_ALUNO)} value={String(a.ID_ALUNO)}>
-                  {String(a.NOME)}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => setModalAberto("novo-aluno")}
-              className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
-            >
-              + Novo Aluno
-            </button>
+              onChange={selecionarAluno}
+              placeholder="Selecione um aluno..."
+              options={alunos.map((a) => ({ value: String(a.ID_ALUNO), label: String(a.NOME) }))}
+            />
+            <PressButton onClick={() => setModalAberto("novo-aluno")}>+ Novo Aluno</PressButton>
           </div>
         </div>
 
@@ -274,24 +267,15 @@ export function FazerPropostaPage() {
           <div className="bg-white border border-slate-200 rounded-lg p-5 mb-6">
             <label className="block text-xs font-medium text-slate-600 mb-1">Negociação</label>
             <div className="flex gap-2">
-              <select
+              <CustomSelect
+                ariaLabel="Negociação"
+                className="flex-1"
                 value={negociacaoId}
-                onChange={(e) => selecionarNegociacao(e.target.value)}
-                className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm"
-              >
-                <option value="">Selecione uma negociação...</option>
-                {negociacoesDoAluno.map((n) => (
-                  <option key={String(n.ID_NEGOCIACAO)} value={String(n.ID_NEGOCIACAO)}>
-                    {resolverLabelNegociacao(n)}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => setModalAberto("nova-negociacao")}
-                className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
-              >
-                + Nova Negociação
-              </button>
+                onChange={selecionarNegociacao}
+                placeholder="Selecione uma negociação..."
+                options={negociacoesDoAluno.map((n) => ({ value: String(n.ID_NEGOCIACAO), label: resolverLabelNegociacao(n) }))}
+              />
+              <PressButton onClick={() => setModalAberto("nova-negociacao")}>+ Nova Negociação</PressButton>
             </div>
           </div>
         )}
