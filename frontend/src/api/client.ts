@@ -1,4 +1,14 @@
-import type { ApiErrorBody, GerarParcelasInput, ParcelaProposta, RecordRow, ResourceDef } from "./types";
+import type {
+  AnoLetivoRecord,
+  ApiErrorBody,
+  ConfirmarMatriculaResponse,
+  GerarParcelasInput,
+  GestaoVagasResponse,
+  ParcelaProposta,
+  PendentesMatriculaResponse,
+  RecordRow,
+  ResourceDef,
+} from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
 
@@ -19,6 +29,7 @@ export const MODULES: ModuleDef[] = [
   { key: "cadastros", label: "Cadastros", apiBase: "/api/cadastros" },
   { key: "comercial", label: "Comercial", apiBase: "/api/comercial" },
   { key: "financeiro", label: "Financeiro", apiBase: "/api/financeiro" },
+  { key: "planejamento", label: "Planejamento", apiBase: "/api/planejamento" },
 ];
 
 export class ApiError extends Error {
@@ -91,4 +102,23 @@ export const api = {
     ),
 
   listarParcelas: (propostaId: string) => request<ParcelaProposta[]>(`/api/comercial/propostas/${propostaId}/parcelas`),
+
+  // Seletor de Ano Letivo (painel de Planejamento) -- lê direto do Cadastros,
+  // não é um ResourceDef completo (só precisamos listar pro <select>).
+  listAnosLetivos: () => request<AnoLetivoRecord[]>(`/api/cadastros/anos-letivos`),
+
+  // Gestão de Vagas (Planejamento) -- rota dedicada, somente-leitura.
+  getGestaoVagas: (anoLetivoId?: string) =>
+    request<GestaoVagasResponse>(`/api/planejamento/gestao-vagas${anoLetivoId ? `?anoLetivo=${anoLetivoId}` : ""}`),
+
+  // Pendentes de Matrícula (Planejamento) -- rota dedicada.
+  getPendentesMatricula: (anoLetivoId?: string) =>
+    request<PendentesMatriculaResponse>(`/api/planejamento/pendentes-matricula${anoLetivoId ? `?anoLetivo=${anoLetivoId}` : ""}`),
+
+  confirmarMatricula: (idProposta: string, idTurma: string, usuario: string) =>
+    request<ConfirmarMatriculaResponse>(
+      `/api/planejamento/pendentes-matricula/${idProposta}/confirmar`,
+      { method: "POST", body: JSON.stringify({ ID_TURMA: idTurma }) },
+      usuario,
+    ),
 };

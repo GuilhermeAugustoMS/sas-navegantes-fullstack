@@ -12,6 +12,8 @@
     "test": "vitest run",
     "seed": "tsx src/seed.ts",
     "seed:precos": "tsx src/seedPrecos.ts",
+    "seed:turmas": "tsx src/seedTurmas.ts",
+    "seed:negociacoes-2025": "tsx src/seedNegociacoes2025.ts",
     "migrate:postgres": "tsx src/migrateToPostgres.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

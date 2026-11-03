@@ -49,9 +49,9 @@ datasource db {
 // ============================================================
 
 model Alunos {
-  ID_ALUNO                String   @id
+  ID_ALUNO                String    @id
   NOME                    String
-  DATA_NASCIMENTO         DateTime
+  DATA_NASCIMENTO         DateTime?
   GENERO                  String?
   ID_SERIE                String?
   ID_TURMA                String?

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+tsconfig.tsbuildinfo
 
 # Dados reais (data/*.xlsx, incluindo BACKUPS/) SÃO versionados a partir de
 # 2026-09-13 -- decisão explícita do usuário, repositório privado. Só ficam

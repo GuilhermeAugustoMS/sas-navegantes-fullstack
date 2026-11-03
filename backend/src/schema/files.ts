@@ -11,7 +11,11 @@ export const CADASTROS: FileDef = {
       columns: [
         { name: "ID_ALUNO", type: "text", required: true, isId: true },
         { name: "NOME", type: "text", required: true },
-        { name: "DATA_NASCIMENTO", type: "date", required: true },
+        // Opcional desde 2026-11-02: alunos importados de planilhas de CRM
+        // legadas (ex.: aba "Gestão-Negociação") não têm data de nascimento
+        // disponível -- fica em aberto até alguém preencher depois (decisão
+        // explícita do usuário, ver seedNegociacoes2025.ts).
+        { name: "DATA_NASCIMENTO", type: "date" },
         { name: "GENERO", type: "text" },
         { name: "ID_SERIE", type: "text" },
         { name: "ID_TURMA", type: "text" },

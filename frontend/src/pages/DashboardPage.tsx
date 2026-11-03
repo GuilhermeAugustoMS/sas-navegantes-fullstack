@@ -1,6 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import { useCatalog } from "../context/CatalogContext";
+import { TurmaMapaAssentosTab } from "./TurmaMapaAssentosTab";
+
+type Aba = "visao-geral" | "mapa-turmas";
 
 interface Indicadores {
   alunosAtivos: number;
@@ -100,7 +103,7 @@ function CardIndicador({
   );
 }
 
-export function DashboardPage() {
+function VisaoGeralTab() {
   const { resourceBySlug } = useCatalog();
   const [dados, setDados] = useState<Indicadores | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -191,6 +194,37 @@ export function DashboardPage() {
       <div className="mt-4 border border-dashed border-slate-300 rounded-xl px-5 py-4 text-sm text-slate-500 bg-slate-50">
         Gráficos, calendário acadêmico e quadro de avisos chegam na Fase 8 (Dashboards completos) — ainda não implementados.
       </div>
+    </div>
+  );
+}
+
+/**
+ * Dashboard (2026-11-02): ganhou uma 2ª aba "Mapa de Turmas" -- pedido
+ * explícito do usuário, visualização de preenchimento estilo mapa de
+ * poltronas de cinema (ver TurmaMapaAssentosTab.tsx). Mesmo padrão de abas
+ * já usado em Planejamento (PlanejamentoPage.tsx).
+ */
+export function DashboardPage() {
+  const [aba, setAba] = useState<Aba>("visao-geral");
+
+  function abaClasses(ativa: boolean): string {
+    return `px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+      ativa ? "border-brand-blue text-brand-blue-dark" : "border-transparent text-slate-500 hover:text-slate-700"
+    }`;
+  }
+
+  return (
+    <div>
+      <div className="flex gap-4 border-b border-slate-200 mb-6">
+        <button onClick={() => setAba("visao-geral")} className={abaClasses(aba === "visao-geral")}>
+          Visão Geral
+        </button>
+        <button onClick={() => setAba("mapa-turmas")} className={abaClasses(aba === "mapa-turmas")}>
+          Mapa de Turmas
+        </button>
+      </div>
+
+      {aba === "visao-geral" ? <VisaoGeralTab /> : <TurmaMapaAssentosTab />}
     </div>
   );
 }

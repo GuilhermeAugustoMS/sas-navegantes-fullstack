@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { MODULES } from "../api/client";
 import type { ResourceDef } from "../api/types";
-import { FAZER_PROPOSTA_SLUG, GERADOR_PROPOSTA_SLUG } from "../components/Sidebar";
-import { MODULE_ICONS, IconFazerProposta, IconGeradorProposta } from "../lib/moduleIcons";
+import { FAZER_PROPOSTA_SLUG, GERADOR_PROPOSTA_SLUG, GESTAO_VAGAS_SLUG } from "../components/Sidebar";
+import { MODULE_ICONS, IconFazerProposta, IconGeradorProposta, IconGestaoVagas } from "../lib/moduleIcons";
 
 interface Props {
   moduleKey: string;
@@ -54,7 +54,16 @@ export function ModuleMenuPage({ moduleKey, resources, onSelect }: Props) {
             Icone: IconGeradorProposta,
           },
         ]
-      : [];
+      : moduleKey === "planejamento"
+        ? [
+            {
+              slug: GESTAO_VAGAS_SLUG,
+              label: "Planejamento",
+              descricao: "Matrículas pendentes e preenchimento de turmas",
+              Icone: IconGestaoVagas,
+            },
+          ]
+        : [];
 
   const cadastros: MenuItem[] = resources
     .filter((r) => r.apiBase === modulo.apiBase)

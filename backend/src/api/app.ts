@@ -7,6 +7,8 @@ import { requestContext } from "./middleware/requestContext.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { crudRouter, resourceCatalog } from "./routes/genericCrud.routes.js";
 import { propostaGeneratorRouter } from "./routes/propostaGenerator.routes.js";
+import { gestaoVagasRouter } from "./routes/gestaoVagas.routes.js";
+import { pendentesMatriculaRouter } from "./routes/pendentesMatricula.routes.js";
 import { alunoResponsavelGuardRouter } from "./routes/alunoResponsavelGuard.routes.js";
 import { CADASTROS_RESOURCES } from "./cadastrosResources.js";
 import { COMERCIAL_RESOURCES } from "./comercialResources.js";
@@ -43,6 +45,15 @@ export async function createApp(deps: AppDeps = {}) {
 
   app.get("/api/financeiro/_catalogo", (_req, res) => res.json(resourceCatalog(FINANCEIRO_RESOURCES, "/api/financeiro")));
   app.use("/api/financeiro", crudRouter(repo, FINANCEIRO_RESOURCES));
+
+  // Planejamento (Seção 26/27): por enquanto só a rota dedicada de Gestão de
+  // Vagas (somente-leitura, calculada ao vivo) -- nenhum ResourceDef/CRUD
+  // genérico montado ainda pro módulo inteiro. Catálogo vazio só pra o
+  // CatalogContext do frontend (que agrega _catalogo de todo MODULES) não
+  // quebrar ao incluir "planejamento" na lista de módulos.
+  app.get("/api/planejamento/_catalogo", (_req, res) => res.json([]));
+  app.use("/api/planejamento", pendentesMatriculaRouter(repo));
+  app.use("/api/planejamento", gestaoVagasRouter(repo));
 
   app.use(errorHandler);
 

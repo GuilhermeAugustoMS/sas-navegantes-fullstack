@@ -14,6 +14,11 @@ export const FAZER_PROPOSTA_SLUG = "__fazer-proposta__";
 /** Slug sentinela para a tela de Dashboard (indicadores gerais) -- ver CrudPage.tsx. */
 export const DASHBOARD_SLUG = "__dashboard__";
 
+/** Slug sentinela para o painel "Gestão de Vagas" (Planejamento) -- não é
+ * CRUD genérico, mesmo padrão de GERADOR_PROPOSTA_SLUG/FAZER_PROPOSTA_SLUG.
+ * Ver CrudPage.tsx e GestaoVagasPage.tsx. */
+export const GESTAO_VAGAS_SLUG = "__gestao-vagas__";
+
 const MODULE_MENU_PREFIX = "__modulo-";
 const MODULE_MENU_SUFFIX = "__";
 
@@ -47,7 +52,9 @@ interface Props {
  * -- decisão de 2026-09-13, substituiu o popup usado até então). Um módulo
  * sem nenhum recurso implementado continua oculto (mesma regra de antes),
  * exceto o caso especial do Comercial (que sempre tem pelo menos o
- * wizard/gerador de proposta). Dashboard é um item fixo à parte.
+ * wizard/gerador de proposta) e do Planejamento (que sempre tem pelo menos
+ * o painel de Gestão de Vagas, 2026-11-02 -- nenhum ResourceDef/CRUD
+ * genérico pro módulo ainda). Dashboard é um item fixo à parte.
  *
  * Visual inspirado numa referência (SRMS) que o usuário pediu para seguir em
  * 2026-09-07: item ativo vira uma pílula com ícone/texto sobre o fundo navy
@@ -65,10 +72,12 @@ export function Sidebar({ resources, activeSlug, onSelect, open, onClose }: Prop
   const activeResource = resources.find((r) => r.slug === activeSlug);
   const isComercialAtivo =
     activeSlug === GERADOR_PROPOSTA_SLUG || activeSlug === FAZER_PROPOSTA_SLUG || activeResource?.apiBase === "/api/comercial";
+  const isPlanejamentoAtivo = activeSlug === GESTAO_VAGAS_SLUG;
 
   function isModuloAtivo(mod: ModuleDef): boolean {
     if (activeSlug === moduleMenuSlug(mod.key)) return true;
     if (mod.key === "comercial") return isComercialAtivo;
+    if (mod.key === "planejamento") return isPlanejamentoAtivo;
     return activeResource?.apiBase === mod.apiBase;
   }
 
@@ -126,7 +135,8 @@ export function Sidebar({ resources, activeSlug, onSelect, open, onClose }: Prop
           {MODULES.map((mod) => {
             const moduleResources = resources.filter((r) => r.apiBase === mod.apiBase);
             const isComercial = mod.key === "comercial";
-            if (moduleResources.length === 0 && !isComercial) return null;
+            const isPlanejamento = mod.key === "planejamento";
+            if (moduleResources.length === 0 && !isComercial && !isPlanejamento) return null;
             const ativo = isModuloAtivo(mod);
             const Icone = MODULE_ICONS[mod.key];
             return (

@@ -4,6 +4,7 @@ import {
   GERADOR_PROPOSTA_SLUG,
   FAZER_PROPOSTA_SLUG,
   DASHBOARD_SLUG,
+  GESTAO_VAGAS_SLUG,
   moduleKeyFromMenuSlug,
 } from "../components/Sidebar";
 import { DataTable } from "../components/DataTable";
@@ -12,6 +13,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { TopBar } from "../components/TopBar";
 import { PropostaGeneratorPage } from "./PropostaGeneratorPage";
 import { FazerPropostaPage } from "./FazerPropostaPage";
+import { PlanejamentoPage } from "./PlanejamentoPage";
 import { DashboardPage } from "./DashboardPage";
 import { ModuleMenuPage } from "./ModuleMenuPage";
 import { useCatalog } from "../context/CatalogContext";
@@ -60,10 +62,11 @@ export function CrudPage() {
   const isDashboard = activeSlug === DASHBOARD_SLUG;
   const isGeradorProposta = activeSlug === GERADOR_PROPOSTA_SLUG;
   const isFazerProposta = activeSlug === FAZER_PROPOSTA_SLUG;
+  const isGestaoVagas = activeSlug === GESTAO_VAGAS_SLUG;
   const activeModuleKey = activeSlug ? moduleKeyFromMenuSlug(activeSlug) : null;
   const isModuleMenu = activeModuleKey !== null;
   const resource =
-    activeSlug && !isDashboard && !isGeradorProposta && !isFazerProposta && !isModuleMenu
+    activeSlug && !isDashboard && !isGeradorProposta && !isFazerProposta && !isGestaoVagas && !isModuleMenu
       ? resourceBySlug.get(activeSlug) ?? null
       : null;
   const showAtivo = resource ? hasAtivo(resource) : false;
@@ -167,6 +170,11 @@ export function CrudPage() {
           <>
             <BarraMobile onAbrirMenu={() => setSidebarAberta(true)} />
             <FazerPropostaPage />
+          </>
+        ) : isGestaoVagas ? (
+          <>
+            <BarraMobile onAbrirMenu={() => setSidebarAberta(true)} />
+            <PlanejamentoPage />
           </>
         ) : (
           <>

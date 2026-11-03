@@ -49,10 +49,22 @@ function IconFinanceiro() {
   );
 }
 
+function IconPlanejamento() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 shrink-0">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3.5 9h17" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 3v3M16 3v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7 13.5h3v3H7z" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export const MODULE_ICONS: Record<string, () => ReactNode> = {
   cadastros: IconCadastros,
   comercial: IconComercial,
   financeiro: IconFinanceiro,
+  planejamento: IconPlanejamento,
 };
 
 /** Ícone da ação "Fazer Proposta" (criar do zero) -- ver ModuleMenuPage.tsx:
@@ -77,6 +89,18 @@ export function IconGeradorProposta() {
       <path d="M8 13h8M8 16.5h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx="11" cy="13" r="1.1" fill="currentColor" stroke="none" />
       <circle cx="14.5" cy="16.5" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Ícone da ação "Gestão de Vagas" (Planejamento): grupo de pessoas/vagas. */
+export function IconGestaoVagas() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 shrink-0">
+      <circle cx="9" cy="8.5" r="2.8" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4 19c0-2.8 2.2-4.8 5-4.8s5 2 5 4.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="17" cy="7" r="1.8" strokeDasharray="2 2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M14.5 19c.3-2 1.6-3.6 3.3-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" />
     </svg>
   );
 }
